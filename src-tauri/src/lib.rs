@@ -24,7 +24,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             win_builder
                 .title_bar_style(TitleBarStyle::Overlay)
-                .traffic_light_position(LogicalPosition::new(10, 20))
+                .traffic_light_position(LogicalPosition::new(15, 22))
                 .build()
                 .unwrap();
 
