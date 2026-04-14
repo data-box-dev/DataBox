@@ -1,0 +1,11 @@
+[package]
+name = "db-postgres"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+db-core.workspace = true
+async-trait.workspace = true
+sqlx = { workspace = true, features = ["postgres", "json"] }
+thiserror.workspace = true
