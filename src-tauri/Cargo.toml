@@ -8,6 +8,20 @@ repository = ""
 edition = "2021"
 rust-version = "1.77.2"
 
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.dependencies]
+db-core    = { path = "crates/db-core" }
+async-trait = "0.1"
+serde       = { version = "1", features = ["derive"] }
+tokio       = { version = "1", features = ["full"] }
+thiserror   = "2"
+sqlx        = { version = "0.8", features = ["runtime-tokio"] }
+mongodb     = "3"
+redis       = { version = "0.26", features = ["tokio-comp", "aio"] }
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -18,6 +32,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.5.6", features = [] }
 
 [dependencies]
+db-core.workspace = true
+db-postgres = { path = "crates/db-postgres" }
+db-mysql    = { path = "crates/db-mysql" }
+db-sqlite   = { path = "crates/db-sqlite" }
+db-mongo    = { path = "crates/db-mongo" }
+db-redis    = { path = "crates/db-redis" }
+
+
 tauri = { version = "2.10.3", features = [] }
 tauri-plugin-log = "2.8.0"
 
