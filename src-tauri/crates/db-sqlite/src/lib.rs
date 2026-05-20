@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use db_core::{
     traits::DatabaseDriver,
     types::*,
+    DbError,
     DbResult,
 };
 use sqlx::sqlite::SqlitePoolOptions;

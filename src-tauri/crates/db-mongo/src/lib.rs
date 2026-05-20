@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use db_core::{
     traits::DocumentDriver,
     types::*,
+    DbError,
     DbResult,
 };
 

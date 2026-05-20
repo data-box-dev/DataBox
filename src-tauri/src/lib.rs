@@ -10,18 +10,10 @@ use commands::*;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::new().build())
-        .plugin(tauri_plugin_secure_store::SecureStore::new())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .manage(AppState::new())
         .manage(ConnectionRegistry::new())
         .setup(|app| {
-            // if cfg!(debug_assertions) {
-            //     app.handle().plugin(
-            //         tauri_plugin_log::Builder::default()
-            //             .level(log::LevelFilter::Info)
-            //             .build(),
-            //     )?;
-            // }
-
             let win_builder =
                 WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                     .decorations(true)
@@ -39,7 +31,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(tauri::generate_handler\![
             // connection
             connection::list_connections,
             connection::register_connection,
@@ -67,6 +59,6 @@ pub fn run() {
             config::save_connections,
             config::load_connections,
         ])
-        .run(tauri::generate_context!())
+        .run(tauri::generate_context\!())
         .expect("error while running tauri application");
 }

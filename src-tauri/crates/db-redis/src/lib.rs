@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use db_core::{
     traits::CacheDriver,
     types::*,
+    DbError,
     DbResult,
 };
 
