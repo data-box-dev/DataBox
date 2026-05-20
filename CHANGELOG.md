@@ -66,6 +66,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - get_columns: 轻量级列元数据
 - explain: EXPLAIN 查询计划
 
+**Redis (db-redis) — 完整实现**
+- 连接：redis:// DSN + multiplexed async connection + SELECT db
+- ping: PING 命令
+- 基本 KV：get / set(EX ttl) / del / exists / ttl / expire
+- Hash：hget / hset / hgetall / hdel
+- List：lrange / lpush / rpush
+- Set：smembers / sadd
+- ZSet：zrange WITHSCORES → (String, f64)
+- 浏览：scan(MATCH/COUNT) / key_type → RedisKeyType
+- 服务器：server_info(INFO) / raw_command(任意命令)
+- redis_value_to_json: redis::Value → serde_json::Value 转换
+- 6 个单元测试覆盖 redis_value_to_json + RedisKeyType 序列化
+
 #### 技术文档
 - **README.md**：项目介绍、架构、快速开始、待办事项
 - **ARCHITECTURE.md**：完整架构文档（数据流、状态管理、安全模型）
@@ -82,9 +95,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### In Progress
 - **Monaco Editor 集成**：npm 包源网络限制，暂时使用 textarea
-- **MySQL 驱动**：架构就绪，待实现 DatabaseDriver trait
-- **MongoDB 驱动**：架构就绪，DocumentDriver 待实现
-- **Redis 驱动**：架构就绪，CacheDriver 待实现
 - **ConnectionDialog 测试连接**：Rust stub 待完善
 
 ### Known Issues
@@ -94,11 +104,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ConnectionDialog 的"测试连接"按钮尚未实现真实 ping
 
 ### Roadmap
-- [ ] **v0.2.0**：Monaco Editor + MySQL 驱动 + 查询历史 UI
-- [ ] **v0.3.0**：MongoDB 驱动 + Redis 驱动 + 查询结果导出
-- [ ] **v0.4.0**：连接测试 + 错误处理优化 + 性能优化
-- [ ] **v0.5.0**：深色主题 + 快捷键自定义 + 查询格式化
-- [ ] **v1.0.0**：完整功能集 + 端到端测试 + 性能基准
+- [ ] **v0.2.0**：Monaco Editor + 查询历史 UI + 连接测试
+- [ ] **v0.3.0**：查询结果导出（CSV/JSON）+ 错误处理优化
+- [ ] **v0.4.0**：连接分组 + 深色主题 + 性能优化
+- [ ] **v0.5.0**：快捷键自定义 + 查询格式化
+- [ ] **v1.0.0**：端到端测试 + 性能基准 + 发布
 
 ## [0.0.0] - 2026-05-18
 

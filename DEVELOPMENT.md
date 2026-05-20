@@ -79,8 +79,8 @@ src-tauri/src/
     ├── db-postgres/     # PostgreSQL 驱动（完整实现）
     ├── db-sqlite/       # SQLite 驱动（完整实现 + 测试）
     ├── db-mysql/        # MySQL 驱动（完整实现）
-    ├── db-mongo/        # MongoDB 驱动（待实现）
-    └── db-redis/        # Redis 驱动（待实现）
+    ├── db-mongo/        # MongoDB 驱动（完整实现）
+    └── db-redis/        # Redis 驱动（完整实现）
 ```
 
 ## 添加新数据库驱动

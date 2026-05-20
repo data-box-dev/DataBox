@@ -5,6 +5,7 @@ use db_postgres::PostgresDriver;
 use db_mysql::MySqlDriver;
 use db_sqlite::SqliteDriver;
 use db_mongo::MongoDriver;
+use db_redis::RedisDriver;
 use tauri::State;
 
 /// 驱动工厂：根据驱动类型创建驱动实例
@@ -32,6 +33,12 @@ pub async fn create_driver(
         }
         db_core::types::DriverKind::Mongo => {
             let driver = MongoDriver::connect(config)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(Box::new(driver))
+        }
+        db_core::types::DriverKind::Redis => {
+            let driver = RedisDriver::connect(config)
                 .await
                 .map_err(|e| e.to_string())?;
             Ok(Box::new(driver))

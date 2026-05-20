@@ -203,10 +203,10 @@ SecureStore.set("databox:password:{id}", password)
 | **PostgreSQL** | ✅ 完整实现 | ~350 行 | pg_database, pg_tables, information_schema |
 | **MySQL** | ✅ 完整实现 | ~450 行 | information_schema, LAST_INSERT_ID(), COLUMN_KEY |
 | **SQLite** | ✅ 完整实现 | ~500 行 | PRAGMA, memory/file, 5 个单元测试 |
-| **MongoDB** | ⏳ 待实现 | — | DocumentDriver 待实现 |
-| **Redis** | ⏳ 待实现 | — | CacheDriver 待实现 |
+| **MongoDB** | ✅ 完整实现 | ~400 行 | find/insert/update/delete/aggregate/count, BSON→JSON |
+| **Redis** | ✅ 完整实现 | ~350 行 | KV/Hash/List/Set/ZSet, SCAN/INFO/raw_command |
 
-**完成度：3/5（60%）**
+**完成度：5/5（100%）**
 
 ### 驱动架构
 
@@ -227,15 +227,14 @@ pub trait DatabaseDriver: Send + Sync {
 
 ### 高优先级
 - [ ] **Monaco Editor** 集成：替换 SqlEditor 中的 textarea
-- [ ] **MySQL / SQLite 驱动**：参考 db-postgres 实现
-- [ ] **驱动实例序列化**：解决 ConnectionRegistry 中驱动恢复问题
 - [ ] **连接测试 UI**：ConnectionDialog 中的测试连接功能
+- [ ] **驱动实例序列化**：解决 ConnectionRegistry 中驱动恢复问题
 
 ### 中优先级
 - [ ] **查询历史 UI**：工具栏"历史"按钮的交互
-- [ ] **MongoDB / Redis 驱动**：DocumentDriver + CacheDriver 实现
 - [ ] **错误处理优化**：统一错误提示和恢复机制
 - [ ] **连接分组**：连接树的文件夹功能
+- [ ] **查询结果导出**：CSV/JSON 导出功能
 
 ### 低优先级
 - [ ] **深色主题优化**：当前使用 naive-ui 默认主题
