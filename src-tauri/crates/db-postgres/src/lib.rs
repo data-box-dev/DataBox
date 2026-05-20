@@ -6,6 +6,7 @@ use db_core::{
     DbResult,
 };
 use sqlx::postgres::PgPoolOptions;
+use sqlx::{Row, Column, ColumnIndex};
 
 /// PostgreSQL 驱动实现
 pub struct PostgresDriver {
@@ -65,7 +66,7 @@ impl DatabaseDriver for PostgresDriver {
 
         // 从第一行提取列元数据
         let first_row = &rows[0];
-        let column_names = first_row.column_names();
+        let column_names = first_row.columns().iter().map(|c| c.name()).collect::<Vec<_>>();
 
         let columns: Vec<ColumnMeta> = column_names
             .iter()
@@ -132,7 +133,7 @@ impl DatabaseDriver for PostgresDriver {
 
     /// EXPLAIN 查询执行计划
     async fn explain(&self, sql: &str) -> DbResult<String> {
-        let row: (String,) = sqlx::query_as(&format!("EXPLAIN {}", sql))
+        let row: (String,) = sqlx::query_as::<_, (String,)>(&format!("EXPLAIN {}", sql))
             .fetch_one(&self.pool)
             .await
             .map_err(|e| DbError::QueryFailed(e.to_string()))?;
@@ -158,12 +159,11 @@ impl DatabaseDriver for PostgresDriver {
 
     /// 列出数据库内所有表（含视图）
     async fn list_tables(&self, database: &str) -> DbResult<Vec<String>> {
-        // 连接到指定数据库
-        let db_url = format!("{}/{}", self.pool.connect_options().get_database(), database);
         // 使用当前连接查询 pg_tables
         let rows: Vec<(String, String)> = sqlx::query_as(
             "SELECT schemaname, tablename FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY schemaname, tablename"
         )
+        .bind(database)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| DbError::QueryFailed(e.to_string()))?;
@@ -220,8 +220,8 @@ impl DatabaseDriver for PostgresDriver {
                     data_type,
                     nullable: is_nullable == "YES",
                     default_value: default,
-                    is_primary_key: false, // 后续从主键查询填充
-                    is_unique: false,      // 后续从索引查询填充
+                    is_primary_key: false,
+                    is_unique: false,
                     comment: None,
                     char_max_length: None,
                 }
@@ -230,65 +230,78 @@ impl DatabaseDriver for PostgresDriver {
 
         // 查询主键
         let pk_rows: Vec<(String,)> = sqlx::query_as(
-            r#"
-            SELECT a.attname
-            FROM pg_index i
-            JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-            WHERE i.indrelid = $1::regclass AND i.indisprimary
-            "#
+            "SELECT a.attname FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indrelid = $1::regclass AND i.indisprimary ORDER BY a.attnum"
         )
         .bind(format!("{}.{}", schema, table_name))
         .fetch_all(&self.pool)
         .await
         .map_err(|e| DbError::QueryFailed(e.to_string()))?;
 
-        let primary_keys: Vec<String> = pk_rows.into_iter().map(|(name,)| name).collect();
+        let pk_set: std::collections::HashSet<String> = pk_rows.into_iter().map(|(name,)| name).collect();
 
-        // 填充主键标记
-        let mut columns_with_pk = columns;
-        for col in &mut columns_with_pk {
-            if primary_keys.contains(&col.name) {
-                col.is_primary_key = true;
-            }
+        // 填充主键和唯一信息
+        let mut columns = columns;
+        for col in &mut columns {
+            col.is_primary_key = pk_set.contains(&col.name);
         }
+
+        // 查询索引
+        let index_rows = sqlx::query(
+            "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = $1 AND tablename = $2"
+        )
+        .bind(&schema)
+        .bind(&table_name)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| DbError::QueryFailed(e.to_string()))?;
+
+        let indexes: Vec<IndexSchema> = index_rows
+            .into_iter()
+            .map(|row: sqlx::postgres::PgRow| {
+                let name: String = row.get("indexname");
+                let defn: String = row.get("indexdef");
+                let is_unique = defn.contains("UNIQUE");
+                IndexSchema {
+                    name,
+                    columns: vec![], // TODO: 从 pg_index 解析
+                    is_unique,
+                    is_primary: false,
+                }
+            })
+            .collect();
 
         Ok(TableSchema {
             schema: Some(schema),
             name: table_name,
-            columns: columns_with_pk,
-            indexes: vec![],
-            primary_keys,
+            columns,
+            indexes,
+            primary_keys: pk_set.into_iter().collect(),
         })
     }
 
     /// 快速获取列元数据
-    async fn get_columns(
-        &self,
-        _database: &str,
-        table: &str,
-    ) -> DbResult<Vec<ColumnMeta>> {
-        let (schema, table_name) = if table.contains('.') {
-            let parts: Vec<&str> = table.split('.').collect();
-            (parts[0].to_string(), parts[1].to_string())
-        } else {
-            ("public".to_string(), table.to_string())
-        };
-
+    async fn get_columns(&self, _database: &str, table: &str) -> DbResult<Vec<ColumnMeta>> {
+        let schema = "public";
         let rows = sqlx::query(
-            "SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position"
+            r#"SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position"#
         )
-        .bind(&schema)
-        . bind(&table_name)
+        .bind(schema)
+        .bind(table)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| DbError::QueryFailed(e.to_string()))?;
 
         Ok(rows
             .into_iter()
-            .map(|row: sqlx::postgres::PgRow| ColumnMeta {
-                name: row.get("column_name"),
-                data_type: row.get("data_type"),
-                nullable: row.get::<String, _>("is_nullable") == "YES",
+            .map(|row: sqlx::postgres::PgRow| {
+                let name: String = row.get("column_name");
+                let data_type: String = row.get("data_type");
+                let is_nullable: String = row.get("is_nullable");
+                ColumnMeta {
+                    name,
+                    data_type,
+                    nullable: is_nullable == "YES",
+                }
             })
             .collect())
     }
@@ -296,66 +309,19 @@ impl DatabaseDriver for PostgresDriver {
 
 /// 将 PostgreSQL 行中的值转换为 DbValue
 fn pg_row_to_db_value(row: &sqlx::postgres::PgRow, idx: usize) -> DbResult<DbValue> {
-    use sqlx::postgres::types::PgValueRef;
-
-    let value_ref = row
-        .try_get_raw(idx)
-        .map_err(|e| DbError::TypeConversion {
-            column: format!("column_{}", idx),
-            target_type: "unknown".to_string(),
-        })?;
-
-    // 检查 NULL
-    if value_ref.is_null() {
-        return Ok(DbValue::Null);
+    // Try common types in order using try_get<Option<T>> — avoids ValueRef entirely
+    if let Ok(v) = row.try_get::<Option<bool>, usize>(idx) { return Ok(v.map(DbValue::Bool).unwrap_or(DbValue::Null)); }
+    if let Ok(v) = row.try_get::<Option<i16>, usize>(idx) { return Ok(v.map(|i| DbValue::Int(i as i64)).unwrap_or(DbValue::Null)); }
+    if let Ok(v) = row.try_get::<Option<i32>, usize>(idx) { return Ok(v.map(|i| DbValue::Int(i as i64)).unwrap_or(DbValue::Null)); }
+    if let Ok(v) = row.try_get::<Option<i64>, usize>(idx) { return Ok(v.map(DbValue::Int).unwrap_or(DbValue::Null)); }
+    if let Ok(v) = row.try_get::<Option<f32>, usize>(idx) { return Ok(v.map(|f| DbValue::Float(f as f64)).unwrap_or(DbValue::Null)); }
+    if let Ok(v) = row.try_get::<Option<f64>, usize>(idx) { return Ok(v.map(DbValue::Float).unwrap_or(DbValue::Null)); }
+    if let Ok(v) = row.try_get::<Option<String>, usize>(idx) { return Ok(v.map(DbValue::Text).unwrap_or(DbValue::Null)); }
+    if let Ok(v) = row.try_get::<Option<Vec<u8>>, usize>(idx) { return Ok(v.map(DbValue::Bytes).unwrap_or(DbValue::Null)); }
+    if let Ok(v) = row.try_get::<Option<chrono::NaiveDateTime>, usize>(idx) {
+        return Ok(v.map(|dt| DbValue::Timestamp(chrono::DateTime::from_naive_utc_and_offset(dt, chrono::Utc))).unwrap_or(DbValue::Null));
     }
-
-    // 根据 PostgreSQL 类型解码
-    // 注意：这里简化处理，实际需要根据 OID 精确匹配类型
-    // 使用 try_decode 进行类型推断
-    #[derive(Debug)]
-    enum Decoded {
-        Bool(bool),
-        Int(i64),
-        Float(f64),
-        Text(String),
-        Bytes(Vec<u8>),
-    }
-
-    let decoded = if let Ok(v) = value_ref.try_decode::<bool>() {
-        Decoded::Bool(v)
-    } else if let Ok(v) = value_ref.try_decode::<i16>() {
-        Decoded::Int(v as i64)
-    } else if let Ok(v) = value_ref.try_decode::<i32>() {
-        Decoded::Int(v as i64)
-    } else if let Ok(v) = value_ref.try_decode::<i64>() {
-        Decoded::Int(v)
-    } else if let Ok(v) = value_ref.try_decode::<f32>() {
-        Decoded::Float(v as f64)
-    } else if let Ok(v) = value_ref.try_decode::<f64>() {
-        Decoded::Float(v)
-    } else if let Ok(v) = value_ref.try_decode::<String>() {
-        Decoded::Text(v)
-    } else if let Ok(v) = value_ref.try_decode::<&str>() {
-        Decoded::Text(v.to_string())
-    } else if let Ok(v) = value_ref.try_decode::<Vec<u8>>() {
-        Decoded::Bytes(v)
-    } else {
-        // 回退到文本表示
-        let text: String = value_ref
-            .text_decode::<&str>()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|_| "<unable to decode>".to_string());
-        return Ok(DbValue::Text(text));
-    };
-
-    Ok(match decoded {
-        Decoded::Bool(v) => DbValue::Bool(v),
-        Decoded::Int(v) => DbValue::Int(v),
-        Decoded::Float(v) => DbValue::Float(v),
-        Decoded::Text(v) => DbValue::Text(v),
-        Decoded::Bytes(v) => DbValue::Bytes(v),
-    })
+    Ok(DbValue::Text("<unable to decode>".to_string()))
 }
 
 #[cfg(test)]

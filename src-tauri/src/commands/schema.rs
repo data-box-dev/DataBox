@@ -1,5 +1,6 @@
-use crate::commands::database::create_driver;
+use crate::commands::database::{create_driver, AnyDriver};
 use crate::connection_registry::ConnectionRegistry;
+use db_core::traits::DatabaseDriver;
 use db_core::types;
 use tauri::State;
 
@@ -7,13 +8,21 @@ use tauri::State;
 async fn get_driver(
     registry: &ConnectionRegistry,
     conn_id: &str,
-) -> Result<Box<dyn DatabaseDriver>, String> {
+) -> Result<AnyDriver, String> {
     let config_arc = registry
         .get_config(conn_id)
         .await
         .ok_or("Connection not found")?;
     let config = config_arc.lock().unwrap().clone();
-    create_driver(&config).await
+    create_driver(&config).await.map_err(|e| e.to_string())
+}
+
+/// 从 AnyDriver 提取 DatabaseDriver（仅关系型数据库支持）
+fn as_relation_driver(driver: AnyDriver) -> Result<Box<dyn DatabaseDriver>, String> {
+    match driver {
+        AnyDriver::Relational(d) => Ok(d),
+        _ => Err("Not a relational database".to_string()),
+    }
 }
 
 /// 列出指定连接的所有数据库
@@ -22,7 +31,7 @@ pub async fn list_databases(
     conn_id: &str,
     registry: State<'_, ConnectionRegistry>,
 ) -> Result<Vec<types::DatabaseInfo>, String> {
-    let driver = get_driver(&registry, conn_id).await?;
+    let driver = as_relation_driver(get_driver(&registry, conn_id).await?)?;
     let dbs = driver
         .list_databases()
         .await
@@ -37,9 +46,9 @@ pub async fn list_schemas(
     database: &str,
     registry: State<'_, ConnectionRegistry>,
 ) -> Result<Vec<String>, String> {
-    let _driver = get_driver(&registry, conn_id).await?;
+    let _driver = as_relation_driver(get_driver(&registry, conn_id).await?)?;
     // 关系型数据库以 database 作为 schema 视图
-    let tables = _driver
+    let _tables = _driver
         .list_tables(database)
         .await
         .map_err(|e| e.to_string())?;
@@ -56,7 +65,7 @@ pub async fn list_tables(
     _schema: Option<&str>,
     registry: State<'_, ConnectionRegistry>,
 ) -> Result<Vec<types::TableInfo>, String> {
-    let driver = get_driver(&registry, conn_id).await?;
+    let driver = as_relation_driver(get_driver(&registry, conn_id).await?)?;
 
     let table_names = driver
         .list_tables(database)
@@ -81,11 +90,11 @@ pub async fn list_tables(
 pub async fn list_columns(
     conn_id: &str,
     database: &str,
-    schema: Option<&str>,
+    _schema: Option<&str>,
     table: &str,
     registry: State<'_, ConnectionRegistry>,
 ) -> Result<Vec<types::ColumnMeta>, String> {
-    let driver = get_driver(&registry, conn_id).await?;
+    let driver = as_relation_driver(get_driver(&registry, conn_id).await?)?;
     let schema_desc = driver
         .describe_table(database, table)
         .await
@@ -95,7 +104,7 @@ pub async fn list_columns(
     let columns: Vec<types::ColumnMeta> = schema_desc
         .columns
         .into_iter()
-        .map(|cs| ColumnMeta {
+        .map(|cs| types::ColumnMeta {
             name: cs.name,
             data_type: cs.data_type,
             nullable: cs.nullable,
@@ -113,7 +122,7 @@ pub async fn describe_table(
     table: &str,
     registry: State<'_, ConnectionRegistry>,
 ) -> Result<types::TableSchema, String> {
-    let driver = get_driver(&registry, conn_id).await?;
+    let driver = as_relation_driver(get_driver(&registry, conn_id).await?)?;
     driver
         .describe_table(database, table)
         .await

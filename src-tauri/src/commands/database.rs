@@ -1,48 +1,65 @@
 use db_core::types::ConnectionConfig;
-use db_core::traits::DatabaseDriver;
+use db_core::traits::{DatabaseDriver, DocumentDriver, CacheDriver};
 use db_postgres::PostgresDriver;
 use db_mysql::MySqlDriver;
 use db_sqlite::SqliteDriver;
 use db_mongo::MongoDriver;
 use db_redis::RedisDriver;
+use crate::connection_registry::ConnectionRegistry;
 use tauri::State;
+
+/// 枚举：统一所有驱动类型
+pub enum AnyDriver {
+    Relational(Box<dyn DatabaseDriver>),
+    Document(Box<dyn DocumentDriver>),
+    Cache(Box<dyn CacheDriver>),
+}
+
+impl AnyDriver {
+    pub async fn ping(&self) -> Result<(), db_core::error::DbError> {
+        match self {
+            AnyDriver::Relational(d) => d.ping().await,
+            AnyDriver::Document(d) => d.ping().await,
+            AnyDriver::Cache(d) => d.ping().await,
+        }
+    }
+}
 
 /// 驱动工厂：根据驱动类型创建驱动实例
 pub async fn create_driver(
     config: &ConnectionConfig,
-) -> Result<Box<dyn DatabaseDriver>, String> {
+) -> Result<AnyDriver, String> {
     match config.driver {
         db_core::types::DriverKind::Postgres => {
             let driver = PostgresDriver::connect(config)
                 .await
                 .map_err(|e| e.to_string())?;
-            Ok(Box::new(driver))
+            Ok(AnyDriver::Relational(Box::new(driver)))
         }
         db_core::types::DriverKind::Mysql => {
             let driver = MySqlDriver::connect(config)
                 .await
                 .map_err(|e| e.to_string())?;
-            Ok(Box::new(driver))
+            Ok(AnyDriver::Relational(Box::new(driver)))
         }
         db_core::types::DriverKind::Sqlite => {
             let driver = SqliteDriver::connect(config)
                 .await
                 .map_err(|e| e.to_string())?;
-            Ok(Box::new(driver))
+            Ok(AnyDriver::Relational(Box::new(driver)))
         }
         db_core::types::DriverKind::Mongo => {
             let driver = MongoDriver::connect(config)
                 .await
                 .map_err(|e| e.to_string())?;
-            Ok(Box::new(driver))
+            Ok(AnyDriver::Document(Box::new(driver)))
         }
         db_core::types::DriverKind::Redis => {
             let driver = RedisDriver::connect(config)
                 .await
                 .map_err(|e| e.to_string())?;
-            Ok(Box::new(driver))
+            Ok(AnyDriver::Cache(Box::new(driver)))
         }
-        _ => Err(format!("Driver {:?} not yet implemented", config.driver)),
     }
 }
 
@@ -53,7 +70,7 @@ pub async fn connect(
     registry: State<'_, ConnectionRegistry>,
 ) -> Result<String, String> {
     // 验证连接可用（创建驱动 + ping）
-    let _driver = create_driver(&config).await?;
+    let _driver = create_driver(&config).await.map_err(|e| e.to_string())?;
 
     // 生成连接 ID
     let conn_id = if config.id.is_empty() {
@@ -81,8 +98,8 @@ pub async fn ping(
     let config = config_arc.lock().unwrap().clone();
     drop(config_arc);
 
-    let driver = create_driver(&config).await?;
-    driver.ping().await?;
+    let driver = create_driver(&config).await.map_err(|e| e.to_string())?;
+    driver.ping().await.map_err(|e| e.to_string())?;
     Ok(())
 }
 

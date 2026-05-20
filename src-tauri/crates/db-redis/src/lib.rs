@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use redis::AsyncConnection;
 use std::collections::HashMap;
 
 use db_core::{
@@ -7,6 +6,7 @@ use db_core::{
     types::*,
     DbError,
     DbResult,
+    RedisKeyType,
 };
 
 /// Redis 驱动实现
@@ -344,7 +344,7 @@ impl CacheDriver for RedisDriver {
         // redis::Value 配对转成 (String, f64)
         let mut result = Vec::new();
         for chunk in raw.chunks(2) {
-            if let (Some(redis::Value::Data(member)), Some(redis::Value::Data(score_bytes))) =
+            if let (Some(redis::Value::BulkString(member)), Some(redis::Value::BulkString(score_bytes))) =
                 (chunk.get(0), chunk.get(1))
             {
                 let member_str = String::from_utf8_lossy(member).to_string();
@@ -386,7 +386,7 @@ impl CacheDriver for RedisDriver {
 
 impl RedisDriver {
     /// 获取一个新连接（每次操作创建新连接，桌面工具操作频率低可以接受）
-    async fn get_conn(&self) -> DbResult<redis::AsyncConnection> {
+    async fn get_conn(&self) -> DbResult<redis::aio::MultiplexedConnection> {
         self.client
             .get_multiplexed_async_connection()
             .await
@@ -397,21 +397,22 @@ impl RedisDriver {
 /// 将 redis-rs 的 Value 转换为 serde_json::Value
 fn redis_value_to_json(val: &redis::Value) -> serde_json::Value {
     match val {
-        redis::Value::Data(bytes) => {
+        redis::Value::BulkString(bytes) => {
             match std::str::from_utf8(bytes) {
                 Ok(s) => serde_json::Value::String(s.to_string()),
                 Err(_) => serde_json::json!({ "_raw": format!("{:?}", bytes) }),
             }
         }
-        redis::Value::Bulk(vec) => {
+        redis::Value::Array(vec) => {
             let arr: Vec<serde_json::Value> =
                 vec.iter().map(redis_value_to_json).collect();
             serde_json::Value::Array(arr)
         }
-        redis::Value::Status(s) => serde_json::Value::String(s.clone()),
+        redis::Value::SimpleString(s) => serde_json::Value::String(s.clone()),
         redis::Value::Okay => serde_json::Value::String("OK".to_string()),
         redis::Value::Int(i) => serde_json::json!(*i),
         redis::Value::Double(f) => serde_json::json!(*f),
+        _ => serde_json::Value::String(format!("{:?}", val)),
     }
 }
 
@@ -421,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_redis_value_to_json_data() {
-        let val = redis_value_to_json(&redis::Value::Data(b"hello".to_vec()));
+        let val = redis_value_to_json(&redis::Value::BulkString(b"hello".to_vec()));
         assert_eq!(val, serde_json::json!("hello"));
     }
 
@@ -439,9 +440,9 @@ mod tests {
 
     #[test]
     fn test_redis_value_to_json_bulk() {
-        let bulk = redis::Value::Bulk(vec![
-            redis::Value::Data(b"key1".to_vec()),
-            redis::Value::Data(b"key2".to_vec()),
+        let bulk = redis::Value::Array(vec![
+            redis::Value::BulkString(b"key1".to_vec()),
+            redis::Value::BulkString(b"key2".to_vec()),
         ]);
         let val = redis_value_to_json(&bulk);
         assert_eq!(val, serde_json::json!(["key1", "key2"]));

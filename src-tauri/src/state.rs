@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tauri::State;
 use uuid::Uuid;
 
 /// 连接句柄：驱动实例的线程安全引用（UUID 字符串）

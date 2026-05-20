@@ -17,7 +17,7 @@ pub struct QueryResultJson {
 impl From<db_core::types::QueryResult> for QueryResultJson {
     fn from(result: db_core::types::QueryResult) -> Self {
         Self {
-            columns: result.columns,
+            columns: result.columns.clone(),
             rows: result.to_json_rows(),
             row_count: result.row_count,
             elapsed_ms: result.elapsed_ms,
@@ -35,7 +35,11 @@ async fn get_driver(
         .await
         .ok_or("Connection not found")?;
     let config = config_arc.lock().unwrap().clone();
-    create_driver(&config).await
+    let any_driver = create_driver(&config).await.map_err(|e| e.to_string())?;
+    match any_driver {
+        crate::commands::database::AnyDriver::Relational(d) => Ok(d),
+        _ => Err("Query only supported for relational databases".to_string()),
+    }
 }
 
 /// 执行单条 SQL

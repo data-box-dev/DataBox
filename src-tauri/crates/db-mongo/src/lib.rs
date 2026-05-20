@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use bson::{doc, Document};
 use mongodb::Client;
-use mongodb::options::{ClientOptions, FindOptions};
+use mongodb::options::ClientOptions;
 use std::collections::HashMap;
 
 use db_core::{
@@ -9,6 +9,7 @@ use db_core::{
     types::*,
     DbError,
     DbResult,
+    FindOptions,
 };
 
 /// MongoDB 驱动实现
@@ -99,47 +100,44 @@ impl DocumentDriver for MongoDriver {
         let collection = database.collection::<Document>(collection);
 
         // 转换 filter 为 BSON Document
-        let filter_doc = match serde_json::from_value(filter) {
-            Ok(doc) => doc,
+        let filter_doc = match serde_json::to_value(filter) {
+            Ok(v) => match bson::to_bson(&v) {
+                Ok(bson::Bson::Document(d)) => d,
+                _ => Document::new(),
+            },
             Err(_) => Document::new(),
         };
 
-        // 构建查询选项
-        let mut find_opts = FindOptions::builder();
-
-        if let Some(limit) = options.limit {
-            find_opts = find_opts.limit(limit as i64);
-        }
-
-        if let Some(skip) = options.skip {
-            find_opts = find_opts.skip(skip as u64);
-        }
-
+        // 构建 mongodb FindOptions from db_core FindOptions
+        let mut mongo_opts = mongodb::options::FindOptions::default();
+        mongo_opts.limit = options.limit.map(|l| l as i64);
+        mongo_opts.skip = options.skip.map(|s| s as u64);
         if let Some(sort) = options.sort {
-            let sort_doc = serde_json::from_value(sort)
-                .unwrap_or_else(|_| Document::new());
-            find_opts = find_opts.sort(sort_doc);
+            if let Ok(sort_bson) = bson::to_bson(&sort) {
+                if let Some(sort_doc) = sort_bson.as_document() {
+                    mongo_opts.sort = Some(sort_doc.clone());
+                }
+            }
         }
-
         if let Some(projection) = options.projection {
-            let proj_doc = serde_json::from_value(projection)
-                .unwrap_or_else(|_| Document::new());
-            find_opts = find_opts.projection(proj_doc);
+            if let Ok(proj_bson) = bson::to_bson(&projection) {
+                if let Some(proj_doc) = proj_bson.as_document() {
+                    mongo_opts.projection = Some(proj_doc.clone());
+                }
+            }
         }
 
         let mut cursor = collection
             .find(filter_doc)
-            .with_options(find_opts.build())
+            .with_options(mongo_opts)
             .await
             .map_err(|e| DbError::QueryFailed(e.to_string()))?;
 
         let mut results = Vec::new();
-        while let Some(doc) = cursor
-            .try_next()
-            .await
-            .map_err(|e| DbError::QueryFailed(e.to_string()))?
-        {
-            // 转换 BSON Document 为 serde_json::Value
+        while cursor.advance().await.map_err(|e| DbError::QueryFailed(e.to_string()))? {
+            let raw = cursor.current();
+            let doc = bson::de::from_slice(raw.as_bytes())
+                .unwrap_or_else(|_| Document::new());
             let json_value = bson_to_json_value(&doc);
             results.push(json_value);
         }
@@ -166,11 +164,13 @@ impl DocumentDriver for MongoDriver {
             .map_err(|e| DbError::QueryFailed(e.to_string()))?;
 
         // 返回插入的 _id
-        let id = result
-            .inserted_id
-            .as_str()
-            .unwrap_or_else(|| result.inserted_id.as_object_id().unwrap().to_hex().as_str())
-            .to_string();
+        let id = if let Some(s) = result.inserted_id.as_str() {
+            s.to_string()
+        } else if let Some(oid) = result.inserted_id.as_object_id() {
+            oid.to_hex()
+        } else {
+            format!("{:?}", result.inserted_id)
+        };
 
         Ok(id)
     }
@@ -259,8 +259,11 @@ impl DocumentDriver for MongoDriver {
         let pipeline_docs: Vec<Document> = pipeline
             .into_iter()
             .map(|val| {
-                bson::from_value(val)
-                    .map_err(|e| DbError::Serialization(e.to_string()))
+                let bson_val = bson::to_bson(&val)
+                    .map_err(|e| DbError::Serialization(e.to_string()))?;
+                bson_val.as_document().cloned().ok_or_else(|| {
+                    DbError::Serialization("expected document in pipeline".to_string())
+                })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -270,11 +273,10 @@ impl DocumentDriver for MongoDriver {
             .map_err(|e| DbError::QueryFailed(e.to_string()))?;
 
         let mut results = Vec::new();
-        while let Some(doc) = cursor
-            .try_next()
-            .await
-            .map_err(|e| DbError::QueryFailed(e.to_string()))?
-        {
+        while cursor.advance().await.map_err(|e| DbError::QueryFailed(e.to_string()))? {
+            let raw = cursor.current();
+            let doc = bson::de::from_slice(raw.as_bytes())
+                .unwrap_or_else(|_| Document::new());
             let json_value = bson_to_json_value(&doc);
             results.push(json_value);
         }

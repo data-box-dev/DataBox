@@ -31,7 +31,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler\![
+        .invoke_handler(tauri::generate_handler![
             // connection
             connection::list_connections,
             connection::register_connection,
@@ -59,6 +59,6 @@ pub fn run() {
             config::save_connections,
             config::load_connections,
         ])
-        .run(tauri::generate_context\!())
+        .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -1,7 +1,7 @@
 use crate::state::AppState;
 use db_core::types::ConnectionConfig;
 use serde_json::Value;
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 use tauri_plugin_store::StoreExt;
 
 /// 列出所有已注册的连接 ID
@@ -47,8 +47,8 @@ pub async fn test_connection(
 ) -> Result<(), String> {
     use crate::commands::database::create_driver;
 
-    let driver = create_driver(&config).await?;
-    driver.ping().await?;
+    let _driver = create_driver(&config).await.map_err(|e| e.to_string())?;
+    _driver.ping().await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -62,13 +62,13 @@ pub async fn save_connection(
 
     // 1. 保存密码到 store
     let store = app.store("passwords.json")
-        .map_err(|e| format\!("Failed to open password store: {}", e))?;
-    store.set(format\!("password:{}", config.id), Value::String(config.password.clone()));
+        .map_err(|e| format!("Failed to open password store: {}", e))?;
+    store.set(format!("password:{}", config.id), Value::String(config.password.clone()));
     store.save()
-        .map_err(|e| format\!("Failed to save password: {}", e))?;
+        .map_err(|e| format!("Failed to save password: {}", e))?;
 
     // 2. 加载已有连接列表，追加或更新
-    let mut connections = config::load_connections(&app)
+    let mut connections = config::load_connections(app.clone())
         .await
         .unwrap_or_default();
 
@@ -82,7 +82,7 @@ pub async fn save_connection(
     // 3. 持久化到 JSON 文件
     config::save_connections(connections, app)
         .await
-        .map_err(|e| format\!("Failed to save config: {}", e))?;
+        .map_err(|e| format!("Failed to save config: {}", e))?;
 
     Ok(())
 }
@@ -94,8 +94,8 @@ pub async fn load_password(
     app: tauri::AppHandle,
 ) -> Result<String, String> {
     let store = app.store("passwords.json")
-        .map_err(|e| format\!("Failed to open password store: {}", e))?;
-    store.get(format\!("password:{}", id))
+        .map_err(|e| format!("Failed to open password store: {}", e))?;
+    store.get(format!("password:{}", id))
         .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .ok_or_else(|| format\!("Password not found for connection: {}", id))
+        .ok_or_else(|| format!("Password not found for connection: {}", id))
 }

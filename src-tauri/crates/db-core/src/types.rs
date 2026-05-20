@@ -22,7 +22,7 @@ pub enum DbValue {
 
 impl DbValue {
     pub fn is_null(&self) -> bool {
-        matches\!(self, DbValue::Null)
+        matches!(self, DbValue::Null)
     }
 
     pub fn as_str(&self) -> Option<&str> {
@@ -82,9 +82,9 @@ impl<T: Into<DbValue>> From<Option<T>> for DbValue {
 pub fn db_value_to_json(val: &DbValue) -> serde_json::Value {
     match val {
         DbValue::Null => serde_json::Value::Null,
-        DbValue::Bool(b) => serde_json::json\!(*b),
-        DbValue::Int(i) => serde_json::json\!(*i),
-        DbValue::Float(f) => serde_json::json\!(*f),
+        DbValue::Bool(b) => serde_json::json!(*b),
+        DbValue::Int(i) => serde_json::json!(*i),
+        DbValue::Float(f) => serde_json::json!(*f),
         DbValue::Text(s) => serde_json::Value::String(s.clone()),
         DbValue::Bytes(b) => {
             use base64::Engine as _;
@@ -124,7 +124,7 @@ impl QueryResult {
     }
 
     pub fn empty() -> Self {
-        Self { columns: vec\![], rows: vec\![], row_count: 0, elapsed_ms: 0 }
+        Self { columns: vec![], rows: vec![], row_count: 0, elapsed_ms: 0 }
     }
 
     /// 转换为前端友好格式：DbValue -> serde_json::Value
@@ -252,20 +252,20 @@ pub enum DriverKind {
 impl ConnectionConfig {
     pub fn to_url(&self) -> String {
         match self.driver {
-            DriverKind::Postgres => format\!(
+            DriverKind::Postgres => format!(
                 "postgres://{}:{}@{}:{}/{}",
                 self.username, self.password, self.host, self.port, self.database
             ),
-            DriverKind::Mysql => format\!(
+            DriverKind::Mysql => format!(
                 "mysql://{}:{}@{}:{}/{}",
                 self.username, self.password, self.host, self.port, self.database
             ),
             DriverKind::Sqlite => self.database.clone(),
-            DriverKind::Mongo => format\!(
+            DriverKind::Mongo => format!(
                 "mongodb://{}:{}@{}:{}/{}",
                 self.username, self.password, self.host, self.port, self.database
             ),
-            DriverKind::Redis => format\!(
+            DriverKind::Redis => format!(
                 "redis://{}:{}@{}:{}/{}",
                 self.username, self.password, self.host, self.port, self.database
             ),
