@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, h, watch } from 'vue'
+import { ref, computed, onMounted, h } from 'vue'
 import type { VNode } from 'vue'
 import {
   NFlex,
@@ -28,7 +28,6 @@ import type { FormInst, FormItemRule } from 'naive-ui'
 import type { ConnectionConfig, DriverKind } from '@/types/database'
 import { useConnectionsStore } from '@/stores/connections'
 import { useQueryStore } from '@/stores/query'
-import { useSavedQueriesStore } from '@/stores/savedQueries'
 import { tauriCommands } from '@/composables/useTauriCommands'
 import SqlEditor from '@/components/editor/SqlEditor.vue'
 import QueryResult from '@/components/result/QueryResult.vue'
@@ -36,7 +35,6 @@ import TableDetail from '@/components/sidebar/TableDetail.vue'
 
 const connectionsStore = useConnectionsStore()
 const queryStore = useQueryStore()
-const savedStore = useSavedQueriesStore()
 
 // ── UI State ──
 const showDialog = ref(false)

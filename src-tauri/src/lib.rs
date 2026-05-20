@@ -21,13 +21,19 @@ pub fn run() {
                     .inner_size(1300.0, 900.0)
                     .min_inner_size(300.0, 200.0);
 
-            // 仅在 macOS 时设置透明标题栏
+            // macOS: transparent title bar
             #[cfg(target_os = "macos")]
-            win_builder
-                .title_bar_style(TitleBarStyle::Overlay)
-                .traffic_light_position(LogicalPosition::new(15, 22))
-                .build()
-                .unwrap();
+            {
+                win_builder
+                    .title_bar_style(TitleBarStyle::Overlay)
+                    .traffic_light_position(LogicalPosition::new(15, 22))
+                    .build()
+                    .unwrap();
+            }
+
+            // non-macOS: build without title bar overrides
+            #[cfg(not(target_os = "macos"))]
+            win_builder.build().unwrap();
 
             Ok(())
         })
