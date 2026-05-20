@@ -21,7 +21,7 @@ export const useQueryStore = defineStore('query', () => {
     try {
       const result = await tauriCommands.executeSql(connId, sql)
       currentResult.value = result
-      addToHistory(sql, result.elapsedMs)
+      addToHistory(sql, result.elapsedMs, connId)
       return result
     } catch (e) {
       error.value = `Query failed: ${e}`
@@ -48,13 +48,17 @@ export const useQueryStore = defineStore('query', () => {
     }
   }
 
-  function addToHistory(sql: string, elapsedMs: number): void {
+  function addToHistory(
+    sql: string,
+    elapsedMs: number,
+    connectionId: string,
+  ): void {
     const item: QueryHistoryItem = {
       id: crypto.randomUUID(),
       sql,
       elapsedMs,
       timestamp: Date.now(),
-      connectionId: '',
+      connectionId,
     }
     queryHistory.value = [item, ...queryHistory.value].slice(0, 100)
   }

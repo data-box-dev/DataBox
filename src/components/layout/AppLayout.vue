@@ -14,6 +14,7 @@ import { useQueryStore } from '@/stores/query'
 import QueryToolbar from '@/components/toolbar/QueryToolbar.vue'
 import ConnectionTree from '@/components/sidebar/ConnectionTree.vue'
 import ConnectionDialog from '@/components/sidebar/ConnectionDialog.vue'
+import QueryHistory from '@/components/sidebar/QueryHistory.vue'
 import SqlEditor from '@/components/editor/SqlEditor.vue'
 import QueryResult from '@/components/result/QueryResult.vue'
 import type { ConnectionConfig } from '@/types/database'
@@ -23,6 +24,7 @@ const queryStore = useQueryStore()
 
 const siderWidth = ref('300px')
 const showDialog = ref(false)
+const showHistory = ref(false)
 const editingConfig = ref<ConnectionConfig | null>(null)
 
 onMounted(() => {
@@ -40,6 +42,15 @@ function handleRun() {
 
 function handleStop() {
   // TODO: implement query cancellation
+}
+
+function handleHistory() {
+  showHistory.value = !showHistory.value
+}
+
+function handleHistorySelect(sql: string): void {
+  queryStore.setEditorContent(sql)
+  showHistory.value = false
 }
 
 function handleNewConnection() {
@@ -90,6 +101,7 @@ function handleExpand(keys: string[]) {
           @run="handleRun"
           @stop="handleStop"
           @new-connection="handleNewConnection"
+          @history="handleHistory"
         />
       </NFlex>
     </NLayoutHeader>
@@ -170,6 +182,12 @@ function handleExpand(keys: string[]) {
     :editing-config="editingConfig"
     @update:visible="showDialog = $event"
     @saved="handleConnectionSaved"
+  />
+
+  <QueryHistory
+    :visible="showHistory"
+    @update:visible="showHistory = $event"
+    @select="handleHistorySelect"
   />
 </template>
 
