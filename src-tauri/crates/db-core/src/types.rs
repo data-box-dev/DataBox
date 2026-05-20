@@ -52,25 +52,39 @@ impl DbValue {
 
 // 常见类型的 From 转换，方便驱动层构造 DbValue
 impl From<bool> for DbValue {
-    fn from(v: bool) -> Self { DbValue::Bool(v) }
+    fn from(v: bool) -> Self {
+        DbValue::Bool(v)
+    }
 }
 impl From<i32> for DbValue {
-    fn from(v: i32) -> Self { DbValue::Int(v as i64) }
+    fn from(v: i32) -> Self {
+        DbValue::Int(v as i64)
+    }
 }
 impl From<i64> for DbValue {
-    fn from(v: i64) -> Self { DbValue::Int(v) }
+    fn from(v: i64) -> Self {
+        DbValue::Int(v)
+    }
 }
 impl From<f64> for DbValue {
-    fn from(v: f64) -> Self { DbValue::Float(v) }
+    fn from(v: f64) -> Self {
+        DbValue::Float(v)
+    }
 }
 impl From<String> for DbValue {
-    fn from(v: String) -> Self { DbValue::Text(v) }
+    fn from(v: String) -> Self {
+        DbValue::Text(v)
+    }
 }
 impl From<&str> for DbValue {
-    fn from(v: &str) -> Self { DbValue::Text(v.to_string()) }
+    fn from(v: &str) -> Self {
+        DbValue::Text(v.to_string())
+    }
 }
 impl From<serde_json::Value> for DbValue {
-    fn from(v: serde_json::Value) -> Self { DbValue::Json(v) }
+    fn from(v: serde_json::Value) -> Self {
+        DbValue::Json(v)
+    }
 }
 impl<T: Into<DbValue>> From<Option<T>> for DbValue {
     fn from(v: Option<T>) -> Self {
@@ -125,11 +139,21 @@ pub struct QueryResult {
 impl QueryResult {
     pub fn new(columns: Vec<ColumnMeta>, rows: Vec<Row>, elapsed_ms: u64) -> Self {
         let row_count = rows.len();
-        Self { columns, rows, row_count, elapsed_ms }
+        Self {
+            columns,
+            rows,
+            row_count,
+            elapsed_ms,
+        }
     }
 
     pub fn empty() -> Self {
-        Self { columns: vec![], rows: vec![], row_count: 0, elapsed_ms: 0 }
+        Self {
+            columns: vec![],
+            rows: vec![],
+            row_count: 0,
+            elapsed_ms: 0,
+        }
     }
 
     /// 转换为前端友好格式：DbValue → serde_json::Value
@@ -176,7 +200,7 @@ pub struct ColumnMeta {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TableSchema {
-    pub schema: Option<String>,  // PostgreSQL schema / MySQL database
+    pub schema: Option<String>, // PostgreSQL schema / MySQL database
     pub name: String,
     pub columns: Vec<ColumnSchema>,
     pub indexes: Vec<IndexSchema>,
@@ -239,16 +263,16 @@ pub enum TableType {
 /// 通用连接参数，前端填表单后传过来
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionConfig {
-    pub id: String,           // UUID，前端生成
-    pub name: String,         // 用户给这个连接起的名字
+    pub id: String,   // UUID，前端生成
+    pub name: String, // 用户给这个连接起的名字
     pub driver: DriverKind,
     pub host: String,
     pub port: u16,
     pub database: String,
     pub username: String,
-    pub password: String,     // 实际存储时应加密
+    pub password: String, // 实际存储时应加密
     pub ssl: bool,
-    pub options: HashMap<String, String>,  // 驱动特有的额外参数
+    pub options: HashMap<String, String>, // 驱动特有的额外参数
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
