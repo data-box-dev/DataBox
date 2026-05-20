@@ -196,6 +196,33 @@ SecureStore.set("databox:password:{id}", password)
 密码从内存清除
 ```
 
+## 📊 数据库驱动支持
+
+| 驱动 | 状态 | 代码行数 | 特性 |
+|---|---|---|---|
+| **PostgreSQL** | ✅ 完整实现 | ~350 行 | pg_database, pg_tables, information_schema |
+| **MySQL** | ✅ 完整实现 | ~450 行 | information_schema, LAST_INSERT_ID(), COLUMN_KEY |
+| **SQLite** | ✅ 完整实现 | ~500 行 | PRAGMA, memory/file, 5 个单元测试 |
+| **MongoDB** | ⏳ 待实现 | — | DocumentDriver 待实现 |
+| **Redis** | ⏳ 待实现 | — | CacheDriver 待实现 |
+
+**完成度：3/5（60%）**
+
+### 驱动架构
+
+所有驱动实现 `DatabaseDriver` trait，提供统一接口：
+
+```rust
+pub trait DatabaseDriver: Send + Sync {
+    async fn connect(config: &ConnectionConfig) -> DbResult<Self>
+    async fn query(&self, sql: &str, params: Vec<Value>) -> DbResult<QueryResult>
+    async fn execute(&self, sql: &str, params: Vec<Value>) -> DbResult<ExecResult>
+    async fn list_databases(&self) -> DbResult<Vec<DatabaseInfo>>
+    async fn list_tables(&self, database: &str) -> DbResult<Vec<String>>
+    async fn describe_table(&self, database: &str, table: &str) -> DbResult<TableSchema>
+}
+```
+
 ## 📝 待办事项
 
 ### 高优先级
