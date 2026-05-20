@@ -36,6 +36,11 @@ DataBox 是一个基于 **Tauri 2 + Vue 3** 构建的跨平台数据库管理工
 └─────────────────────────────────────────┘
 ```
 
+### 🔐 安全连接
+- **密码加密存储**：Tauri Secure Store → 系统钥匙串
+- **配置持久化**：connections.json（不含密码）
+- **支持数据库**：PostgreSQL ✅ | SQLite ✅ | MySQL ⏳ | MongoDB ⏳ | Redis ⏳
+
 ## 🏗️ 架构
 
 ### 前端（Vue 3 + Pinia + naive-ui）

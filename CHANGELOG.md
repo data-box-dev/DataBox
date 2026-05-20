@@ -11,12 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### 前端（Vue 3 + naive-ui）
 - **DataGrip 风格布局**：三区块固定框架（工具栏 40px + 主工作区 + 状态栏 28px）
-- **连接树浏览器**：五级树形结构（连接 → 数据库 → Schema → 表 → 列）
-- **SQL 编辑器**：textarea + Ctrl+Enter 执行（Monaco Editor 待集成）
-- **查询结果表格**：列排序、单元格复制、TSV 多行复制、虚拟滚动（>1000 行）
-- **连接对话框**：驱动选择、主机/端口/数据库/用户名/密码/SSL 配置
+- **连接树形浏览器**：五级树形结构（连接 → 数据库 → Schema → 表 → 列）
+- **连接配置对话框**：驱动选择、主机/端口/数据库/用户名/密码/SSL 配置
 - **连接配置持久化**：StoredConnection 保存到本地 JSON 文件
 - **密码加密存储**：通过 Tauri Secure Store 写入系统钥匙串
+- **SQL 编辑器**：textarea + Ctrl+Enter 执行（Monaco Editor 待集成）
+- **查询结果表格**：列排序、单元格复制、TSV 多行复制、虚拟滚动（>1000 行）
 - **查询历史**：保留最近 100 条查询记录
 - **Pinia 状态管理**：connections store + query store
 - **Tauri IPC 封装**：类型安全的命令调用
@@ -30,22 +30,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SQL 执行命令**：execute_sql/execute_batch
 - **Tauri Secure Store 集成**：macOS Keychain / Windows Credential Manager / Linux Secret Service
 - **db-core trait 定义**：DatabaseDriver / DocumentDriver / CacheDriver
-- **PostgreSQL 驱动**：完整 DatabaseDriver trait 实现
-  - connect/ping/close
-  - query: PgRow → DbValue 映射
-  - execute: DML 支持
-  - execute_batch: 事务内批量执行
-  - list_databases: pg_database 查询
-  - list_tables: pg_tables 查询
-  - describe_table: information_schema 查询
-  - get_columns: 列元数据查询
-  - explain: EXPLAIN 包装
+
+#### 数据库驱动
+
+**PostgreSQL (db-postgres) — 完整实现**
+- connect/ping/close
+- query: PgRow → DbValue 类型映射
+- execute: DML 支持（rows_affected）
+- execute_batch: 事务内批量执行
+- list_databases: pg_database 查询
+- list_tables: pg_tables 查询
+- describe_table: information_schema 查询（列 + 主键）
+- get_columns: 轻量级列元数据
+- explain: EXPLAIN 包装
+
+**SQLite (db-sqlite) — 完整实现（5 个单元测试）**
+- 内存数据库和文件数据库支持（`:memory:` 或文件路径）
+- PRAGMA table_info 元数据查询
+- PRAGMA index_list 索引查询
+- 事务内批量执行
+- last_insert_rowid 支持
+- 5 个单元测试：
+  - `test_sqlite_connect_memory`
+  - `test_sqlite_create_and_query`
+  - `test_sqlite_list_tables`
+  - `test_sqlite_describe_table`
+  - `test_sqlite_execute_batch`
 
 #### 技术文档
 - **README.md**：项目介绍、架构、快速开始、待办事项
-- **ARCHITECTURE.md**：完整架构文档（数据流、状态管理、安全模型、扩展指南）
-- **docs/superpowers/specs/2026-05-20-frontend-refactor-design.md**：前端重构设计规格
-- **docs/superpowers/plans/2026-05-20-frontend-refactor.md**：实施计划（20 个 Task）
+- **ARCHITECTURE.md**：完整架构文档（数据流、状态管理、安全模型）
+- **DEVELOPMENT.md**：开发指南（添加驱动、调试、测试、常见问题）
+- **CHANGELOG.md**：v0.0.0 → v0.1.0 完整变更日志
+- **docs/superpowers/specs/2026-05-20-frontend-refactor-design.md**
+- **docs/superpowers/plans/2026-05-20-frontend-refactor.md**
 
 ### Changed
 - 删除 Vite 模板代码（HelloWorld.vue, TheWelcome.vue, WelcomeItem.vue 等）
@@ -54,16 +72,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 扩展 UnoCSS 配置：添加 h-100%, min-h-0, flex-1 等快捷键
 
 ### In Progress
-- **Monaco Editor 集成**：npm 包源网络限制，暂时使用 textarea 占位
-- **MySQL / SQLite 驱动**：架构已就绪，待实现 DatabaseDriver trait
-- **MongoDB / Redis 驱动**：DocumentDriver / CacheDriver 待实现
-- **驱动实例序列化**：ConnectionRegistry 中驱动恢复问题待解决
+- **Monaco Editor 集成**：npm 包源网络限制，暂时使用 textarea
+- **MySQL 驱动**：架构就绪，待实现 DatabaseDriver trait
+- **MongoDB 驱动**：架构就绪，DocumentDriver 待实现
+- **Redis 驱动**：架构就绪，CacheDriver 待实现
+- **ConnectionDialog 测试连接**：Rust stub 待完善
 
 ### Known Issues
 - npm 包源遇到网络限制（403 Forbidden），Monaco Editor 无法安装
 - Rust cargo 检查时 crates.io 索引下载失败
-- db-postgres query() 中的列数据类型目前硬编码为 "unknown"
+- db-postgres/db-sqlite query() 中的列数据类型目前硬编码为 "unknown"
 - ConnectionDialog 的"测试连接"按钮尚未实现真实 ping
+
+### Roadmap
+- [ ] **v0.2.0**：Monaco Editor + MySQL 驱动 + 查询历史 UI
+- [ ] **v0.3.0**：MongoDB 驱动 + Redis 驱动 + 查询结果导出
+- [ ] **v0.4.0**：连接测试 + 错误处理优化 + 性能优化
+- [ ] **v0.5.0**：深色主题 + 快捷键自定义 + 查询格式化
+- [ ] **v1.0.0**：完整功能集 + 端到端测试 + 性能基准
 
 ## [0.0.0] - 2026-05-18
 
