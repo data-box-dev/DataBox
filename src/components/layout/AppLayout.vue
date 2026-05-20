@@ -8,6 +8,7 @@ import {
   NLayoutFooter,
   NSplit,
   NFlex,
+  NTag,
 } from 'naive-ui'
 import { useConnectionsStore } from '@/stores/connections'
 import { useQueryStore } from '@/stores/query'
@@ -189,21 +190,31 @@ function handleExpand(keys: string[]) {
 
     <NLayoutFooter bordered class="status-bar">
       <NFlex justify="space-between" align="center" size="small">
-        <span v-if="connectionsStore.activeConnection">
+        <span v-if="connectionsStore.activeConnection" class="status-conn">
+          <NTag size="tiny" :bordered="false" round type="info">
+            {{ connectionsStore.activeConnection.driver }}
+          </NTag>
           {{ connectionsStore.activeConnection.name }}
-          | {{ connectionsStore.activeConnection.host }}:{{
-            connectionsStore.activeConnection.port
-          }}
-          | {{ connectionsStore.activeConnection.database }}
+          <span class="status-host">
+            {{ connectionsStore.activeConnection.host }}:{{
+              connectionsStore.activeConnection.port
+            }}
+          </span>
+          / {{ connectionsStore.activeConnection.database }}
         </span>
-        <span v-else>未连接</span>
-        <span v-if="queryStore.multiResults.length > 0">
+        <span v-else class="status-disconnected">
+          未连接
+        </span>
+        <span v-if="queryStore.multiResults.length > 0" class="status-query">
           {{ queryStore.multiResults.length }} 个结果集 ·
           {{ queryStore.totalRows }} 行
         </span>
-        <span v-else-if="queryStore.currentResult">
+        <span v-else-if="queryStore.currentResult" class="status-query">
           {{ queryStore.currentResult.rowCount }} 行 ·
           {{ queryStore.currentResult.elapsedMs }}ms
+        </span>
+        <span v-else class="status-time">
+          {{ new Date().toLocaleTimeString('zh-CN') }}
         </span>
       </NFlex>
     </NLayoutFooter>
@@ -249,6 +260,25 @@ function handleExpand(keys: string[]) {
   height: 28px;
   padding: 0 12px;
   font-size: 12px;
+}
+.status-conn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.status-host {
+  color: var(--n-text-color-3);
+}
+.status-disconnected {
+  color: var(--n-text-color-3);
+  font-style: italic;
+}
+.status-query {
+  color: var(--n-text-color-2);
+}
+.status-time {
+  color: var(--n-text-color-3);
+  font-variant-numeric: tabular-nums;
 }
 .h-100% {
   height: 100%;
