@@ -1,5 +1,7 @@
 use crate::state::{AppState, ConnectionHandle};
 use tauri::{State, command};
+use tauri_plugin_secure_store::SecureStore;
+use db_core::types::ConnectionConfig;
 
 /// 列出所有已注册的连接 ID
 #[command]
@@ -40,8 +42,39 @@ pub async fn unregister_connection(
 /// 测试连接连通性（不注册，仅验证）
 #[command]
 pub async fn test_connection(
-    _config: db_core::types::ConnectionConfig,
+    _config: ConnectionConfig,
 ) -> Result<(), String> {
-    // TODO Phase 3: 集成 secure store + 驱动工厂
+    // TODO Phase 4: 集成驱动工厂
     Ok(())
+}
+
+/// 保存连接配置（密码加密存储到系统钥匙串）
+#[command]
+pub async fn save_connection(
+    config: ConnectionConfig,
+    secure_store: State<'_, SecureStore>,
+) -> Result<(), String> {
+    // 写入密码到系统钥匙串
+    let key = format!("databox:password:{}", config.id);
+    secure_store
+        .set(&key, &config.password)
+        .await
+        .map_err(|e| format!("Failed to save password: {}", e))?;
+
+    // TODO: 保存不含密码的配置到本地存储（文件系统或 SQLite）
+    tracing::info!("Connection saved: {}", config.id);
+    Ok(())
+}
+
+/// 从系统钥匙串加载连接密码
+#[command]
+pub async fn load_password(
+    id: &str,
+    secure_store: State<'_, SecureStore>,
+) -> Result<String, String> {
+    let key = format!("databox:password:{}", id);
+    secure_store
+        .get(&key)
+        .await
+        .map_err(|e| format!("Failed to load password: {}", e))
 }

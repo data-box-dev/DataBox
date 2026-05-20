@@ -8,6 +8,7 @@ use commands::*;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(tauri_plugin_secure_store::SecureStore::new())
         .manage(AppState::new())
         .setup(|app| {
             // if cfg!(debug_assertions) {
@@ -42,6 +43,8 @@ pub fn run() {
             connection::get_connection,
             connection::unregister_connection,
             connection::test_connection,
+            connection::save_connection,
+            connection::load_password,
             // database
             database::connect,
             database::ping,
