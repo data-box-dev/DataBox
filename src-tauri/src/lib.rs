@@ -1,6 +1,8 @@
 use tauri::{LogicalPosition, TitleBarStyle, WebviewUrl, WebviewWindowBuilder};
 mod state;
+mod commands;
 use state::AppState;
+use commands::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -33,6 +35,13 @@ pub fn run() {
 
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            connection::list_connections,
+            connection::register_connection,
+            connection::get_connection,
+            connection::unregister_connection,
+            connection::test_connection,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
