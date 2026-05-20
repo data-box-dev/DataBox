@@ -1,7 +1,9 @@
 use tauri::{LogicalPosition, TitleBarStyle, WebviewUrl, WebviewWindowBuilder};
 mod state;
+mod connection_registry;
 mod commands;
 use state::AppState;
+use connection_registry::ConnectionRegistry;
 use commands::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -10,6 +12,7 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_secure_store::SecureStore::new())
         .manage(AppState::new())
+        .manage(ConnectionRegistry::new())
         .setup(|app| {
             // if cfg!(debug_assertions) {
             //     app.handle().plugin(
