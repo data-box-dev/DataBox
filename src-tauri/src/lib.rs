@@ -36,11 +36,25 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // connection
             connection::list_connections,
             connection::register_connection,
             connection::get_connection,
             connection::unregister_connection,
             connection::test_connection,
+            // database
+            database::connect,
+            database::ping,
+            database::disconnect,
+            // schema
+            schema::list_databases,
+            schema::list_schemas,
+            schema::list_tables,
+            schema::list_columns,
+            schema::describe_table,
+            // query
+            query::execute_sql,
+            query::execute_batch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
