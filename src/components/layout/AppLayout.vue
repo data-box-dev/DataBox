@@ -63,6 +63,21 @@ async function handleConnectionSaved(config: ConnectionConfig) {
 function handleConnectionDeleted(id: string) {
   connectionsStore.removeConnection(id)
 }
+
+function handleExpand(keys: string[]) {
+  // 先计算哪些是首次展开的（跟之前的 expandedNodes 对比）
+  const prev = new Set([...connectionsStore.expandedNodes])
+  const newlyExpanded = keys.filter(
+    (k) => !prev.has(k) && k.includes('-tbl-'),
+  )
+
+  connectionsStore.expandedNodes = new Set(keys)
+
+  // 懒加载新展开的表节点的列信息
+  for (const tableNodeId of newlyExpanded) {
+    connectionsStore.loadColumns(tableNodeId)
+  }
+}
 </script>
 
 <template>
@@ -93,7 +108,7 @@ function handleConnectionDeleted(id: string) {
               :expanded-keys="Array.from(connectionsStore.expandedNodes)"
               :selected-key="connectionsStore.activeConnectionId"
               :loading="connectionsStore.loading"
-              @expand="(keys) => connectionsStore.expandedNodes = new Set(keys)"
+              @expand="handleExpand"
               @select="connectionsStore.setActive"
               @new-connection="handleNewConnection"
             />

@@ -126,6 +126,55 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
+  /** 展开表节点时加载列信息 */
+  async function loadColumns(tableNodeId: string): Promise<void> {
+    // 解析连接 ID：格式为 "${connId}-db-${dbName}-tbl-${tableName}"
+    const match = tableNodeId.match(/^(.+)-db-(.+)-tbl-(.+)$/)
+    if (!match) return
+    const [, connId, , tableName] = match
+
+    try {
+      const columns = await tauriCommands.listColumns(
+        connId,
+        '', // database 从 connId 推导，后端会重建驱动时用到
+        '', // schema
+        tableName,
+      )
+
+      // 找到对应的表节点并注入列 children
+      const node = findTreeNode(treeNodes.value, tableNodeId)
+      if (node) {
+        node.children = columns.map((col) => ({
+          id: `${tableNodeId}-col-${col.name}`,
+          kind: 'column' as const,
+          name: col.name,
+          parentId: tableNodeId,
+          dataType: col.dataType,
+          nullable: col.nullable,
+        }))
+        // 触发响应式更新
+        treeNodes.value = [...treeNodes.value]
+      }
+    } catch (e) {
+      error.value = `Failed to load columns: ${e}`
+    }
+  }
+
+  /** 在树中递归查找节点 */
+  function findTreeNode(
+    nodes: TreeNode[],
+    id: string,
+  ): TreeNode | null {
+    for (const node of nodes) {
+      if (node.id === id) return node
+      if (node.children) {
+        const found = findTreeNode(node.children, id)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
   async function loadConnectionsList(): Promise<void> {
     try {
       const stored = await tauriCommands.loadConnections()
@@ -157,7 +206,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
-  return {
+    return {
     connections,
     activeConnectionId,
     activeConnection,
@@ -173,6 +222,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     setActive,
     toggleExpand,
     loadTree,
+    loadColumns,
     loadConnectionsList,
   }
 })
