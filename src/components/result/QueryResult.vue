@@ -3,6 +3,9 @@ import { computed, ref } from 'vue'
 import {
   NDataTable,
   NText,
+  NButton,
+  NSpace,
+  NTooltip,
 } from 'naive-ui'
 import type {
   DataTableColumns,
@@ -53,20 +56,70 @@ const sortedData = computed(() => {
 })
 
 function onCopyCell(row: Record<string, unknown>, col: ColumnMeta): void {
-  const value = row[col.name]
-  const text = value === null || value === undefined ? 'NULL' : String(value)
-  navigator.clipboard.writeText(text)
+  navigator.clipboard.writeText(cellValue(row, col))
 }
 
 function onCopyRow(row: Record<string, unknown>): void {
   if (!props.result) return
   const text = props.result.columns
-    .map((col) => {
-      const val = row[col.name]
-      return val === null || val === undefined ? 'NULL' : String(val)
-    })
+    .map((col) => cellValue(row, col))
     .join('\t')
   navigator.clipboard.writeText(text)
+}
+
+function cellValue(
+  row: Record<string, unknown>,
+  col: ColumnMeta,
+): string {
+  const value = row[col.name]
+  return value === null || value === undefined ? 'NULL' : String(value)
+}
+
+function escapeCsv(val: string): string {
+  if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+    return '"' + val.replace(/"/g, '""') + '"'
+  }
+  return val
+}
+
+function downloadCsv(): void {
+  if (!props.result) return
+  const cols = props.result.columns
+  const rows = sortedData.value
+  const header = cols.map((c) => escapeCsv(c.name)).join(',')
+  const lines = rows.map((row) =>
+    cols.map((c) => escapeCsv(cellValue(row, c))).join(','),
+  )
+  const csv = [header, ...lines].join('\n')
+  const blob = new Blob(['﻿' + csv], {
+    type: 'text/csv;charset=utf-8;',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'query_result_' + Date.now() + '.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function downloadJson(): void {
+  if (!props.result) return
+  const payload = {
+    columns: props.result.columns.map((c) => c.name),
+    rows: sortedData.value,
+    rowCount: props.result.rowCount,
+    elapsedMs: props.result.elapsedMs,
+  }
+  const json = JSON.stringify(payload, null, 2)
+  const blob = new Blob([json], {
+    type: 'application/json;charset=utf-8;',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'query_result_' + Date.now() + '.json'
+  a.click()
+  URL.revokeObjectURL(url)
 }
 </script>
 
@@ -76,6 +129,24 @@ function onCopyRow(row: Record<string, unknown>): void {
       <NText depth="3">
         {{ result.rowCount }} 行 · 耗时 {{ result.elapsedMs }}ms
       </NText>
+      <NSpace :size="4" class="result-actions">
+        <NTooltip placement="top">
+          <template #trigger>
+            <NButton size="tiny" quaternary @click="downloadCsv">
+              导出 CSV
+            </NButton>
+          </template>
+          <span>下载为 CSV 文件</span>
+        </NTooltip>
+        <NTooltip placement="top">
+          <template #trigger>
+            <NButton size="tiny" quaternary @click="downloadJson">
+              导出 JSON
+            </NButton>
+          </template>
+          <span>下载为 JSON 文件</span>
+        </NTooltip>
+      </NSpace>
     </div>
     <NDataTable
       v-if="result"
@@ -106,10 +177,16 @@ function onCopyRow(row: Record<string, unknown>): void {
   overflow: hidden;
 }
 .result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 4px 12px;
   border-bottom: 1px solid var(--n-border-color);
   font-size: 12px;
   flex-shrink: 0;
+}
+.result-actions {
+  margin-left: auto;
 }
 .placeholder {
   display: flex;
