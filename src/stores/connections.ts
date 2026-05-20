@@ -10,9 +10,14 @@ export const useConnectionsStore = defineStore('connections', () => {
   const expandedNodes = ref<Set<string>>(new Set())
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const availableDatabases = ref<string[]>([])
+  const loadingDatabases = ref(false)
 
   const activeConnection = computed(() =>
     connections.value.find((c) => c.id === activeConnectionId.value) || null
+  )
+  const currentDatabase = computed(
+    () => activeConnection.value?.database || '',
   )
 
   async function addConnection(config: ConnectionConfig): Promise<void> {
@@ -89,6 +94,42 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   function setActive(id: string): void {
     activeConnectionId.value = id
+  }
+
+  /** 加载当前连接的可用数据库列表 */
+  async function loadAvailableDatabases(connId: string): Promise<void> {
+    if (!connId) return
+    loadingDatabases.value = true
+    try {
+      const dbs = await tauriCommands.listDatabases(connId)
+      availableDatabases.value = dbs.map((d) => d.name)
+    } catch (e) {
+      error.value = `Failed to load databases: ${e}`
+    } finally {
+      loadingDatabases.value = false
+    }
+  }
+
+  /** 切换数据库并刷新树 */
+  async function switchDatabase(database: string): Promise<void> {
+    if (!activeConnectionId.value) return
+    try {
+      await tauriCommands.switchDatabase(
+        activeConnectionId.value,
+        database,
+      )
+      // 更新本地连接配置
+      const conn = connections.value.find(
+        (c) => c.id === activeConnectionId.value,
+      )
+      if (conn) {
+        conn.database = database
+      }
+      // 重新加载树
+      await loadTree(activeConnectionId.value)
+    } catch (e) {
+      error.value = `Failed to switch database: ${e}`
+    }
   }
 
   function toggleExpand(nodeId: string): void {
@@ -210,9 +251,12 @@ export const useConnectionsStore = defineStore('connections', () => {
     connections,
     activeConnectionId,
     activeConnection,
+    currentDatabase,
     treeNodes,
     expandedNodes,
+    availableDatabases,
     loading,
+    loadingDatabases,
     error,
     addConnection,
     updateConnection,
@@ -223,6 +267,8 @@ export const useConnectionsStore = defineStore('connections', () => {
     toggleExpand,
     loadTree,
     loadColumns,
+    loadAvailableDatabases,
+    switchDatabase,
     loadConnectionsList,
   }
 })

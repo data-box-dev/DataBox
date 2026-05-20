@@ -49,6 +49,10 @@ export const tauriCommands = {
     return invoke('disconnect', { connId })
   },
 
+  async switchDatabase(connId: string, database: string): Promise<void> {
+    return invoke('switch_database', { connId, database })
+  },
+
   // Schema
   async listDatabases(connId: string): Promise<DatabaseInfo[]> {
     return invoke<DatabaseInfo[]>('list_databases', { connId })

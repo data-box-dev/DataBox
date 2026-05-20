@@ -52,6 +52,7 @@ pub fn run() {
             database::connect,
             database::ping,
             database::disconnect,
+            database::switch_database,
             // schema
             schema::list_databases,
             schema::list_schemas,

@@ -96,3 +96,20 @@ pub async fn disconnect(
     Ok(())
 }
 
+/// 切换当前数据库：更新 registry 中的配置并返回成功
+#[tauri::command]
+pub async fn switch_database(
+    conn_id: &str,
+    database: &str,
+    registry: State<'_, ConnectionRegistry>,
+) -> Result<(), String> {
+    let config_arc = registry
+        .get_config(conn_id)
+        .await
+        .ok_or("Connection not found")?;
+    let mut config = config_arc.lock().unwrap();
+    config.database = database.to_string();
+    drop(config);
+    Ok(())
+}
+

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import {
   NButton,
   NTooltip,
+  NSelect,
 } from 'naive-ui'
 import type { ConnectionConfig } from '@/types/database'
 import { useConnectionsStore } from '@/stores/connections'
@@ -23,6 +24,31 @@ const emit = defineEmits<{
 }>()
 
 const store = useConnectionsStore()
+
+const databaseOptions = computed(() =>
+  store.availableDatabases.map((db) => ({
+    label: db,
+    value: db,
+  })),
+)
+
+watch(
+  () => props.connectionId,
+  (connId) => {
+    if (connId) {
+      store.loadAvailableDatabases(connId)
+    } else {
+      store.availableDatabases = []
+    }
+  },
+  { immediate: true },
+)
+
+function onDatabaseChange(database: string | null) {
+  if (database) {
+    store.switchDatabase(database)
+  }
+}
 </script>
 
 <template>
@@ -84,6 +110,17 @@ const store = useConnectionsStore()
         </template>
         <span>执行历史</span>
       </NTooltip>
+    </div>
+    <div v-if="connectionId" class="toolbar-group toolbar-db-switcher">
+      <NSelect
+        :value="store.currentDatabase"
+        :options="databaseOptions"
+        :loading="store.loadingDatabases"
+        placeholder="数据库"
+        size="small"
+        style="width: 160px"
+        @update:value="onDatabaseChange"
+      />
     </div>
     <div class="toolbar-group">
       <NTooltip placement="bottom">
