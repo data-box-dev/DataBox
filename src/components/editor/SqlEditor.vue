@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { NButton, NTooltip } from 'naive-ui'
 
 const props = defineProps<{
@@ -15,6 +15,8 @@ const emit = defineEmits<{
 }>()
 
 const isExecuting = ref(false)
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
+const lineCount = ref(1)
 
 onMounted(() => {
   // TODO: Monaco Editor 懒加载
@@ -24,9 +26,23 @@ onBeforeUnmount(() => {
   // cleanup
 })
 
-watch(() => props.modelValue, (newVal) => {
-  // sync with editor
+watch(() => props.modelValue, () => {
+  syncLineCount()
 })
+
+function syncLineCount() {
+  const lines = props.modelValue.split('\n').length
+  lineCount.value = Math.max(lines, 1)
+}
+
+function getLineNumbers(): string {
+  const count = lineCount.value
+  let result = ''
+  for (let i = 1; i <= count; i++) {
+    result += i + '\n'
+  }
+  return result
+}
 
 function runQuery(): void {
   if (props.modelValue.trim()) {
@@ -45,10 +61,16 @@ function stopQuery(): void {
 }
 
 function onKeyDown(e: KeyboardEvent): void {
+  const textarea = e.target as HTMLTextAreaElement
+
+  // Ctrl+Enter / Cmd+Enter → run current statement
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
     e.preventDefault()
     runQuery()
+    return
   }
+
+  // Ctrl+Shift+Enter / Cmd+Shift+Enter → run all
   if (
     (e.ctrlKey || e.metaKey) &&
     e.shiftKey &&
@@ -56,6 +78,43 @@ function onKeyDown(e: KeyboardEvent): void {
   ) {
     e.preventDefault()
     runAllQueries()
+    return
+  }
+
+  // Ctrl+Home → go to start
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Home') {
+    e.preventDefault()
+    textarea.setSelectionRange(0, 0)
+    return
+  }
+
+  // Ctrl+End → go to end
+  if ((e.ctrlKey || e.metaKey) && e.key === 'End') {
+    e.preventDefault()
+    const len = textarea.value.length
+    textarea.setSelectionRange(len, len)
+    return
+  }
+
+  // Tab → insert 2 spaces
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const value = textarea.value
+    const newValue = value.substring(0, start) + '  ' + value.substring(end)
+    emit('update:modelValue', newValue)
+    // Move cursor after inserted spaces
+    requestAnimationFrame(() => {
+      textarea.selectionStart = textarea.selectionEnd = start + 2
+    })
+  }
+}
+
+function onScroll(this: HTMLTextAreaElement) {
+  const lineEl = this.parentElement?.querySelector('.line-numbers pre')
+  if (lineEl) {
+    lineEl.scrollTop = this.scrollTop
   }
 }
 </script>
@@ -102,13 +161,21 @@ function onKeyDown(e: KeyboardEvent): void {
         <span>停止</span>
       </NTooltip>
     </div>
-    <textarea
-      :value="modelValue"
-      @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
-      @keydown="onKeyDown"
-      class="sql-textarea"
-      placeholder="输入 SQL 查询...&#10;&#10;Ctrl+Enter 运行当前语句&#10;Ctrl+Shift+Enter 执行所有语句"
-    />
+    <div class="editor-body">
+      <div class="line-numbers" aria-hidden="true">
+        <pre>{{ getLineNumbers() }}</pre>
+      </div>
+      <textarea
+        ref="textareaRef"
+        :value="modelValue"
+        @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
+        @keydown="onKeyDown"
+        @scroll="onScroll"
+        @select="syncLineCount"
+        class="sql-textarea"
+        placeholder="输入 SQL 查询...&#10;&#10;Ctrl+Enter 运行当前语句&#10;Ctrl+Shift+Enter 执行所有语句&#10;Tab 插入缩进"
+      />
+    </div>
   </div>
 </template>
 
@@ -125,10 +192,36 @@ function onKeyDown(e: KeyboardEvent): void {
   padding: 4px 8px;
   border-bottom: 1px solid var(--n-border-color);
   background: var(--n-color);
+  flex-shrink: 0;
+}
+.editor-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+.line-numbers {
+  flex-shrink: 0;
+  width: 40px;
+  padding: 12px 4px 12px 0;
+  text-align: right;
+  color: var(--n-text-color-3);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  user-select: none;
+  border-right: 1px solid var(--n-border-color);
+  background: var(--n-color);
+  overflow: hidden;
+}
+.line-numbers pre {
+  margin: 0;
+  line-height: inherit;
 }
 .sql-textarea {
   flex: 1;
-  min-height: 0;
+  min-width: 0;
   padding: 12px;
   border: none;
   resize: none;
@@ -138,5 +231,9 @@ function onKeyDown(e: KeyboardEvent): void {
   background: var(--n-color);
   color: var(--n-text-color);
   outline: none;
+  tab-size: 2;
+  overflow: auto;
+  white-space: pre;
+  overflow-wrap: normal;
 }
 </style>
