@@ -1,6 +1,5 @@
 import './assets/main.css'
 import 'virtual:uno.css'
-import 'virtual:unocss-devtools'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'

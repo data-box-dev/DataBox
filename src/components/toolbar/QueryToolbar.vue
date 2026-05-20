@@ -4,6 +4,7 @@ import {
   NButton,
   NTooltip,
   NSelect,
+  NDivider,
 } from 'naive-ui'
 import type { ConnectionConfig } from '@/types/database'
 import { useConnectionsStore } from '@/stores/connections'
@@ -18,7 +19,6 @@ const emit = defineEmits<{
   stop: []
   save: []
   history: []
-  settings: []
   newConnection: []
   runAll: []
 }>()
@@ -26,10 +26,7 @@ const emit = defineEmits<{
 const store = useConnectionsStore()
 
 const databaseOptions = computed(() =>
-  store.availableDatabases.map((db) => ({
-    label: db,
-    value: db,
-  })),
+  store.availableDatabases.map(db => ({ label: db, value: db })),
 )
 
 watch(
@@ -52,8 +49,8 @@ function onDatabaseChange(database: string | null) {
 </script>
 
 <template>
-  <div class="query-toolbar">
-    <div class="toolbar-group">
+  <div class="toolbar">
+    <div class="toolbar-group toolbar-main">
       <NTooltip placement="bottom">
         <template #trigger>
           <NButton
@@ -61,11 +58,12 @@ function onDatabaseChange(database: string | null) {
             @click="emit('run')"
             :loading="isExecuting"
             quaternary
+            class="btn-run"
           >
             运行
           </NButton>
         </template>
-        <span>运行 (Ctrl+Enter)</span>
+        <span>运行当前语句 (Ctrl+Enter)</span>
       </NTooltip>
       <NTooltip placement="bottom">
         <template #trigger>
@@ -90,10 +88,13 @@ function onDatabaseChange(database: string | null) {
             停止
           </NButton>
         </template>
-        <span>停止</span>
+        <span>停止查询</span>
       </NTooltip>
     </div>
-    <div class="toolbar-group">
+
+    <NDivider vertical class="toolbar-divider" />
+
+    <div class="toolbar-group toolbar-secondary">
       <NTooltip placement="bottom">
         <template #trigger>
           <NButton size="small" quaternary @click="emit('save')">
@@ -108,9 +109,12 @@ function onDatabaseChange(database: string | null) {
             历史
           </NButton>
         </template>
-        <span>执行历史</span>
+        <span>查询历史</span>
       </NTooltip>
     </div>
+
+    <NDivider v-if="connectionId" vertical class="toolbar-divider" />
+
     <div v-if="connectionId" class="toolbar-group toolbar-db-switcher">
       <NSelect
         :value="store.currentDatabase"
@@ -118,41 +122,51 @@ function onDatabaseChange(database: string | null) {
         :loading="store.loadingDatabases"
         placeholder="数据库"
         size="small"
-        style="width: 160px"
+        style="width: 150px"
         @update:value="onDatabaseChange"
       />
     </div>
-    <div class="toolbar-group">
-      <NTooltip placement="bottom">
-        <template #trigger>
-          <NButton size="small" quaternary @click="emit('newConnection')">
-            + 连接
-          </NButton>
-        </template>
-        <span>新建连接</span>
-      </NTooltip>
-      <NTooltip placement="bottom">
-        <template #trigger>
-          <NButton size="small" quaternary @click="emit('settings')">
-            设置
-          </NButton>
-        </template>
-        <span>设置</span>
-      </NTooltip>
-    </div>
+
+    <div class="toolbar-spacer" />
+
+    <NTooltip placement="bottom">
+      <template #trigger>
+        <NButton size="small" quaternary @click="emit('newConnection')">
+          + 连接
+        </NButton>
+      </template>
+      <span>新建连接</span>
+    </NTooltip>
   </div>
 </template>
 
 <style scoped>
-.query-toolbar {
+.toolbar {
   display: flex;
-  gap: 8px;
-  padding: 4px 8px;
   align-items: center;
   height: 100%;
+  padding: 0 6px;
+  gap: 2px;
 }
 .toolbar-group {
   display: flex;
-  gap: 2px;
+  align-items: center;
+  gap: 1px;
+}
+.toolbar-main .btn-run {
+  font-weight: 500;
+}
+.toolbar-divider {
+  height: 18px;
+  margin: 0 6px;
+}
+.toolbar-secondary {
+  opacity: 0.85;
+}
+.toolbar-db-switcher {
+  opacity: 0.9;
+}
+.toolbar-spacer {
+  flex: 1;
 }
 </style>

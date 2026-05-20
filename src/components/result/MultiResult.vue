@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import {
+  NText,
   NButton,
   NSpace,
   NTooltip,
-  NText,
+  NCollapse,
+  NCollapseItem,
 } from 'naive-ui'
 import QueryResult from './QueryResult.vue'
 import type { QueryResult as QR } from '@/types/database'
@@ -38,10 +40,10 @@ function downloadMultiCsv(): void {
   for (let i = 0; i < props.results.length; i++) {
     const r = props.results[i]
     parts.push(`-- Result ${i + 1} (${r.rowCount} rows)`)
-    const header = r.columns.map((c) => escapeCsv(c.name)).join(',')
+    const header = r.columns.map(c => escapeCsv(c.name)).join(',')
     parts.push(header)
     const lines = r.rows
-      .map((row) => r.columns.map((c) => escapeCsv(cellValue(row, c))).join(','))
+      .map(row => r.columns.map(c => escapeCsv(cellValue(row, c))).join(','))
       .join('\n')
     parts.push(lines)
     parts.push('')
@@ -53,15 +55,15 @@ function downloadMultiCsv(): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `multi_query_${Date.now()}.csv`
+  a.download = `multi_query.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
 
 function downloadMultiJson(): void {
   if (props.results.length === 0) return
-  const payload = props.results.map((r) => ({
-    columns: r.columns.map((c) => c.name),
+  const payload = props.results.map(r => ({
+    columns: r.columns.map(c => c.name),
     rows: r.rows,
     rowCount: r.rowCount,
     elapsedMs: r.elapsedMs,
@@ -73,7 +75,7 @@ function downloadMultiJson(): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `multi_query_${Date.now()}.json`
+  a.download = 'multi_query.json'
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -82,11 +84,16 @@ function downloadMultiJson(): void {
 <template>
   <div class="multi-result">
     <div class="multi-header">
-      <span class="multi-title">多语句结果</span>
-      <span class="multi-stats">
-        {{ results.length }} 个结果集 · {{ totalRows }} 行 · {{ totalCols }} 列
-      </span>
-      <NSpace :size="4" class="result-actions">
+      <NSpace :size="8" align="center">
+        <span class="multi-title">多语句结果</span>
+        <NTag size="tiny" :bordered="false" round type="default">
+          {{ results.length }} 个结果集
+        </NTag>
+        <NText depth="3" class="multi-stats">
+          {{ totalRows }} 行 &middot; {{ totalCols }} 列
+        </NText>
+      </NSpace>
+      <NSpace :size="4">
         <NTooltip placement="top">
           <template #trigger>
             <NButton size="tiny" quaternary @click="downloadMultiCsv">
@@ -112,9 +119,9 @@ function downloadMultiJson(): void {
         class="result-block"
       >
         <div class="result-label">
-          结果 {{ index + 1 }}
+          <span>结果 {{ index + 1 }}</span>
           <span v-if="result.rowCount > 0" class="result-meta">
-            {{ result.rowCount }} 行 · {{ result.elapsedMs }}ms
+            {{ result.rowCount }} 行 &middot; {{ result.elapsedMs }}ms
           </span>
           <span v-else class="result-meta result-empty">
             无返回
@@ -137,19 +144,20 @@ function downloadMultiJson(): void {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 12px;
-  border-bottom: 1px solid var(--n-border-color);
-  font-size: 12px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--db-border);
+  background: var(--db-bg-panel);
   flex-shrink: 0;
 }
 .multi-title {
   font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .multi-stats {
-  color: var(--n-text-color-3);
-}
-.result-actions {
-  margin-left: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 .multi-results {
   flex: 1;
@@ -157,25 +165,24 @@ function downloadMultiJson(): void {
   min-height: 0;
 }
 .result-block {
-  border-bottom: 1px solid var(--n-border-color);
+  border-bottom: 1px solid var(--db-border);
 }
 .result-block:last-child {
   border-bottom: none;
 }
 .result-label {
-  padding: 4px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  background: var(--n-color);
-  border-bottom: 1px solid var(--n-border-color);
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--db-bg-toolbar);
+  border-bottom: 1px solid var(--db-border);
 }
 .result-meta {
-  font-weight: normal;
   color: var(--n-text-color-3);
-  font-size: 11px;
+  font-weight: normal;
 }
 .result-empty {
   font-style: italic;

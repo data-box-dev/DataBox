@@ -6,6 +6,8 @@ import {
   NButton,
   NSpace,
   NTooltip,
+  NEmpty,
+  NCard,
 } from 'naive-ui'
 import type {
   DataTableColumns,
@@ -22,14 +24,28 @@ const sortOrder = ref<'ascend' | 'descend' | null>(null)
 
 const columns = computed<DataTableColumns<Record<string, unknown>>>(() => {
   if (!props.result) return []
-  return props.result.columns.map((col) => ({
+  return props.result.columns.map(col => ({
     title: col.name,
     key: col.name,
     sorter: 'default',
     resizable: true,
-    render: (row: Record<string, unknown>) => {
+    minWidth: 80,
+    ellipsis: {
+      tooltip: {
+        width: 'trigger',
+        maxWidth: 600,
+      },
+    },
+    render(row: Record<string, unknown>) {
       const value = row[col.name]
       if (value === null || value === undefined) return 'NULL'
+      if (typeof value === 'object') {
+        try {
+          return JSON.stringify(value)
+        } catch {
+          return String(value)
+        }
+      }
       return String(value)
     },
   }))
@@ -47,33 +63,16 @@ const sortedData = computed(() => {
     if (aVal === bVal) return 0
     if (aVal === null || aVal === undefined) return 1
     if (bVal === null || bVal === undefined) return -1
-    if (sortOrder.value === 'ascend') {
-      return aVal < bVal ? -1 : 1
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return sortOrder.value === 'ascend' ? aVal - bVal : bVal - aVal
     }
-    return aVal < bVal ? 1 : -1
+    if (sortOrder.value === 'ascend') {
+      return String(aVal) < String(bVal) ? -1 : 1
+    }
+    return String(aVal) < String(bVal) ? 1 : -1
   })
   return sorted
 })
-
-function onCopyCell(row: Record<string, unknown>, col: ColumnMeta): void {
-  navigator.clipboard.writeText(cellValue(row, col))
-}
-
-function onCopyRow(row: Record<string, unknown>): void {
-  if (!props.result) return
-  const text = props.result.columns
-    .map((col) => cellValue(row, col))
-    .join('\t')
-  navigator.clipboard.writeText(text)
-}
-
-function cellValue(
-  row: Record<string, unknown>,
-  col: ColumnMeta,
-): string {
-  const value = row[col.name]
-  return value === null || value === undefined ? 'NULL' : String(value)
-}
 
 function escapeCsv(val: string): string {
   if (val.includes(',') || val.includes('"') || val.includes('\n')) {
@@ -86,9 +85,9 @@ function downloadCsv(): void {
   if (!props.result) return
   const cols = props.result.columns
   const rows = sortedData.value
-  const header = cols.map((c) => escapeCsv(c.name)).join(',')
-  const lines = rows.map((row) =>
-    cols.map((c) => escapeCsv(cellValue(row, c))).join(','),
+  const header = cols.map(c => escapeCsv(c.name)).join(',')
+  const lines = rows.map(row =>
+    cols.map(c => escapeCsv(cellValue(row, c))).join(','),
   )
   const csv = [header, ...lines].join('\n')
   const blob = new Blob(['﻿' + csv], {
@@ -97,7 +96,7 @@ function downloadCsv(): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'query_result_' + Date.now() + '.csv'
+  a.download = 'query_result.csv'
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -105,7 +104,7 @@ function downloadCsv(): void {
 function downloadJson(): void {
   if (!props.result) return
   const payload = {
-    columns: props.result.columns.map((c) => c.name),
+    columns: props.result.columns.map(c => c.name),
     rows: sortedData.value,
     rowCount: props.result.rowCount,
     elapsedMs: props.result.elapsedMs,
@@ -117,39 +116,53 @@ function downloadJson(): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'query_result_' + Date.now() + '.json'
+  a.download = 'query_result.json'
   a.click()
   URL.revokeObjectURL(url)
+}
+
+function cellValue(row: Record<string, unknown>, col: ColumnMeta): string {
+  const value = row[col.name]
+  return value === null || value === undefined ? 'NULL' : String(value)
 }
 </script>
 
 <template>
-  <div class="query-result">
-    <div v-if="result" class="result-header">
-      <NText depth="3">
-        {{ result.rowCount }} 行 · 耗时 {{ result.elapsedMs }}ms
-      </NText>
-      <NSpace :size="4" class="result-actions">
-        <NTooltip placement="top">
-          <template #trigger>
-            <NButton size="tiny" quaternary @click="downloadCsv">
-              导出 CSV
-            </NButton>
-          </template>
-          <span>下载为 CSV 文件</span>
-        </NTooltip>
-        <NTooltip placement="top">
-          <template #trigger>
-            <NButton size="tiny" quaternary @click="downloadJson">
-              导出 JSON
-            </NButton>
-          </template>
-          <span>下载为 JSON 文件</span>
-        </NTooltip>
-      </NSpace>
-    </div>
+  <NCard
+    v-if="result"
+    class="query-result-card"
+    :bordered="true"
+    size="small"
+  >
+    <template #header>
+      <div class="result-header">
+        <NSpace :size="12" align="center">
+          <NTag size="tiny" :bordered="false" type="info" round>
+            {{ result.rowCount }} 行
+          </NTag>
+          <NText depth="3" class="result-time">{{ result.elapsedMs }}ms</NText>
+        </NSpace>
+        <NSpace :size="4">
+          <NTooltip placement="top">
+            <template #trigger>
+              <NButton size="tiny" quaternary @click="downloadCsv">
+                导出 CSV
+              </NButton>
+            </template>
+            <span>下载为 CSV 文件</span>
+          </NTooltip>
+          <NTooltip placement="top">
+            <template #trigger>
+              <NButton size="tiny" quaternary @click="downloadJson">
+                导出 JSON
+              </NButton>
+            </template>
+            <span>下载为 JSON 文件</span>
+          </NTooltip>
+        </NSpace>
+      </div>
+    </template>
     <NDataTable
-      v-if="result"
       :columns="columns"
       :data="sortedData"
       :row-key="(row: Record<string, unknown>) =>
@@ -158,42 +171,37 @@ function downloadJson(): void {
       :virtual-scroll="result.rowCount > 1000"
       :max-height="500"
       :striped="true"
-      :bordered="true"
-      @cell-click="(row: Record<string, unknown>, col: ColumnMeta) =>
-        onCopyCell(row, col)
-      "
+      :bordered="false"
+      :single-line="false"
+      :size="'small'"
     />
-    <div v-else class="placeholder">
-      执行查询以查看结果
-    </div>
-  </div>
+  </NCard>
+  <NEmpty v-else description="执行查询以查看结果" size="small" class="result-empty" />
 </template>
 
 <style scoped>
-.query-result {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.query-result-card {
+  --n-card-padding: 0;
 }
 .result-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 12px;
-  border-bottom: 1px solid var(--n-border-color);
-  font-size: 12px;
-  flex-shrink: 0;
+  width: 100%;
 }
-.result-actions {
-  margin-left: auto;
+.result-time {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
-.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
+.result-empty {
+  padding: 40px 0;
+}
+.cell-null {
   color: var(--n-text-color-3);
-  font-size: 14px;
+  font-style: italic;
+}
+.cell-json {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
 }
 </style>

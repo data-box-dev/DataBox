@@ -1,4 +1,67 @@
-body {
-  height: 100vh;
+/* ══════════════════════════════════════════════════════════════
+   DataBox — DataGrip-inspired dark theme
+   ══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── DataGrip Dark palette ── */
+  --db-bg:         #1e1e1e;
+  --db-bg-panel:   #252526;
+  --db-bg-toolbar: #2d2d30;
+  --db-bg-editor:  #1e1e1e;
+  --db-bg-status:  #007acc;
+  --db-border:     #3e3e42;
+  --db-hover:      #2a2d2e;
+
+  --db-text:       #cccccc;
+  --db-text-dim:   #808080;
+  --db-text-bright:#ffffff;
+  --db-accent:     #007acc;
+  --db-success:    #4caf50;
+  --db-warning:    #ff9800;
+  --db-error:      #f44336;
+
+  /* ── naive-ui overrides ── */
+  --n-color:            var(--db-bg-editor);
+  --n-text-color:       var(--db-text);
+  --n-text-color-1:     var(--db-text-bright);
+  --n-text-color-2:     var(--db-text);
+  --n-text-color-3:     var(--db-text-dim);
+  --n-border-color:     var(--db-border);
+  --n-color-hover:      var(--db-hover);
+  --n-color-pressed:    #1a1a1a;
+  --n-color-active:     var(--db-accent);
+  --n-color-focus:      rgba(0, 122, 204, 0.3);
+  --n-color-modal:      var(--db-bg-panel);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--db-bg);
+  color: var(--db-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
   overflow: hidden;
+}
+
+#app {
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--db-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
