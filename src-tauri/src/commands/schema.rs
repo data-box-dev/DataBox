@@ -1,5 +1,6 @@
 use crate::commands::database::create_driver;
 use crate::connection_registry::ConnectionRegistry;
+use db_core::types;
 use tauri::State;
 
 /// 从 registry 取配置并重建驱动
@@ -20,7 +21,7 @@ async fn get_driver(
 pub async fn list_databases(
     conn_id: &str,
     registry: State<'_, ConnectionRegistry>,
-) -> Result<Vec<crate::types::DatabaseInfo>, String> {
+) -> Result<Vec<types::DatabaseInfo>, String> {
     let driver = get_driver(&registry, conn_id).await?;
     let dbs = driver
         .list_databases()
@@ -54,7 +55,7 @@ pub async fn list_tables(
     database: &str,
     _schema: Option<&str>,
     registry: State<'_, ConnectionRegistry>,
-) -> Result<Vec<crate::types::TableInfo>, String> {
+) -> Result<Vec<types::TableInfo>, String> {
     let driver = get_driver(&registry, conn_id).await?;
 
     let table_names = driver
@@ -62,11 +63,11 @@ pub async fn list_tables(
         .await
         .map_err(|e| e.to_string())?;
 
-    let tables: Vec<crate::types::TableInfo> = table_names
+    let tables: Vec<types::TableInfo> = table_names
         .into_iter()
-        .map(|name| crate::types::TableInfo {
+        .map(|name| types::TableInfo {
             name,
-            table_type: crate::types::TableType::Table,
+            table_type: types::TableType::Table,
             row_estimate: None,
             size_bytes: None,
         })
@@ -83,7 +84,7 @@ pub async fn list_columns(
     schema: Option<&str>,
     table: &str,
     registry: State<'_, ConnectionRegistry>,
-) -> Result<Vec<crate::types::ColumnMeta>, String> {
+) -> Result<Vec<types::ColumnMeta>, String> {
     let driver = get_driver(&registry, conn_id).await?;
     let schema_desc = driver
         .describe_table(database, table)
@@ -91,10 +92,10 @@ pub async fn list_columns(
         .map_err(|e| e.to_string())?;
 
     // describe_table 返回 ColumnSchema，转成 ColumnMeta
-    let columns: Vec<crate::types::ColumnMeta> = schema_desc
+    let columns: Vec<types::ColumnMeta> = schema_desc
         .columns
         .into_iter()
-        .map(|cs| crate::types::ColumnMeta {
+        .map(|cs| ColumnMeta {
             name: cs.name,
             data_type: cs.data_type,
             nullable: cs.nullable,
@@ -111,7 +112,7 @@ pub async fn describe_table(
     database: &str,
     table: &str,
     registry: State<'_, ConnectionRegistry>,
-) -> Result<crate::types::TableSchema, String> {
+) -> Result<types::TableSchema, String> {
     let driver = get_driver(&registry, conn_id).await?;
     driver
         .describe_table(database, table)

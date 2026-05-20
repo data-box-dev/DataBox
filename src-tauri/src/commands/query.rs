@@ -2,6 +2,28 @@ use crate::commands::database::create_driver;
 use crate::connection_registry::ConnectionRegistry;
 use db_core::traits::DatabaseDriver;
 use tauri::State;
+use std::collections::HashMap;
+
+/// 前端友好的查询结果（DbValue → serde_json::Value）
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryResultJson {
+    pub columns: Vec<db_core::types::ColumnMeta>,
+    pub rows: Vec<HashMap<String, serde_json::Value>>,
+    pub row_count: usize,
+    pub elapsed_ms: u64,
+}
+
+impl From<db_core::types::QueryResult> for QueryResultJson {
+    fn from(result: db_core::types::QueryResult) -> Self {
+        Self {
+            columns: result.columns,
+            rows: result.to_json_rows(),
+            row_count: result.row_count,
+            elapsed_ms: result.elapsed_ms,
+        }
+    }
+}
 
 /// 从 registry 取配置并重建驱动
 async fn get_driver(
@@ -22,12 +44,13 @@ pub async fn execute_sql(
     conn_id: &str,
     sql: &str,
     registry: State<'_, ConnectionRegistry>,
-) -> Result<crate::types::QueryResult, String> {
+) -> Result<QueryResultJson, String> {
     let driver = get_driver(&registry, conn_id).await?;
-    driver
+    let result = driver
         .query(sql, vec![])
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    Ok(result.into())
 }
 
 /// 批量执行 SQL（事务内）
@@ -36,7 +59,7 @@ pub async fn execute_batch(
     conn_id: &str,
     statements: Vec<String>,
     registry: State<'_, ConnectionRegistry>,
-) -> Result<Vec<crate::types::ExecResult>, String> {
+) -> Result<Vec<db_core::types::ExecResult>, String> {
     let driver = get_driver(&registry, conn_id).await?;
     driver
         .execute_batch(statements)

@@ -81,6 +81,26 @@ impl<T: Into<DbValue>> From<Option<T>> for DbValue {
     }
 }
 
+/// 将 DbValue 转换为 serde_json::Value，消除 tagged enum 序列化开销
+pub fn db_value_to_json(val: &DbValue) -> serde_json::Value {
+    match val {
+        DbValue::Null => serde_json::Value::Null,
+        DbValue::Bool(b) => serde_json::json!(*b),
+        DbValue::Int(i) => serde_json::json!(*i),
+        DbValue::Float(f) => serde_json::json!(*f),
+        DbValue::Text(s) => serde_json::Value::String(s.clone()),
+        DbValue::Bytes(b) => {
+            serde_json::Value::String(base64::Engine::engine(&base64::engine::general_purpose::STANDARD)
+                .encode(b))
+        }
+        DbValue::Timestamp(ts) => serde_json::Value::String(ts.to_rfc3339()),
+        DbValue::Json(v) => v.clone(),
+        DbValue::Array(arr) => {
+            serde_json::Value::Array(arr.iter().map(db_value_to_json).collect())
+        }
+    }
+}
+
 // ══════════════════════════════════════════════════════════════
 // 查询结果
 // ══════════════════════════════════════════════════════════════
@@ -110,6 +130,19 @@ impl QueryResult {
 
     pub fn empty() -> Self {
         Self { columns: vec![], rows: vec![], row_count: 0, elapsed_ms: 0 }
+    }
+
+    /// 转换为前端友好格式：DbValue → serde_json::Value
+    /// 消除 tagged enum 序列化开销（避免 `{"type":"Text","value":"..."}`）
+    pub fn to_json_rows(&self) -> Vec<HashMap<String, serde_json::Value>> {
+        self.rows
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|(k, v)| (k.clone(), db_value_to_json(v)))
+                    .collect()
+            })
+            .collect()
     }
 }
 

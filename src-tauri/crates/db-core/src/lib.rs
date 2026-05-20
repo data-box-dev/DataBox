@@ -20,6 +20,7 @@ pub use traits::{
 };
 pub use types::{
     ColumnMeta, ColumnSchema, ConnectionConfig, DatabaseInfo, DbValue,
+    db_value_to_json,
     DriverKind, ExecResult, IndexSchema, QueryResult, Row, TableInfo,
     TableSchema, TableType,
 };

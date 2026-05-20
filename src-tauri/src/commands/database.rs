@@ -1,4 +1,4 @@
-use crate::types::ConnectionConfig;
+use db_core::types::ConnectionConfig;
 use db_core::traits::DatabaseDriver;
 use db_postgres::PostgresDriver;
 use db_mysql::MySqlDriver;
