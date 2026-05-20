@@ -95,13 +95,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### In Progress
 - **Monaco Editor 集成**：npm 包源网络限制，暂时使用 textarea
-- **ConnectionDialog 测试连接**：Rust stub 待完善
 
 ### Known Issues
 - npm 包源遇到网络限制（403 Forbidden），Monaco Editor 无法安装
 - Rust cargo 检查时 crates.io 索引下载失败
 - db-postgres/db-sqlite query() 中的列数据类型目前硬编码为 "unknown"
-- ConnectionDialog 的"测试连接"按钮尚未实现真实 ping
 
 ### Roadmap
 - [ ] **v0.2.0**：Monaco Editor + 查询历史 UI + 连接测试
