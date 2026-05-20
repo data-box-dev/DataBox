@@ -90,6 +90,7 @@ pub type Row = HashMap<String, DbValue>;
 
 /// SELECT 查询的完整结果集
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct QueryResult {
     /// 列定义（保留顺序）
     pub columns: Vec<ColumnMeta>,
@@ -114,6 +115,7 @@ impl QueryResult {
 
 /// INSERT / UPDATE / DELETE 的执行结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecResult {
     /// 影响的行数
     pub rows_affected: u64,
@@ -129,6 +131,7 @@ pub struct ExecResult {
 
 /// 列的元数据（用于结果集和 Schema 浏览）
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ColumnMeta {
     pub name: String,
     /// 数据库原生类型名，如 "varchar", "int4", "timestamptz"
@@ -138,6 +141,7 @@ pub struct ColumnMeta {
 
 /// 表的完整 Schema 描述
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TableSchema {
     pub schema: Option<String>,  // PostgreSQL schema / MySQL database
     pub name: String,
@@ -148,6 +152,7 @@ pub struct TableSchema {
 
 /// 一列的详细定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ColumnSchema {
     pub name: String,
     pub data_type: String,
@@ -170,6 +175,7 @@ pub struct IndexSchema {
 
 /// 数据库/Schema 的简要信息（用于左侧树形列表）
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DatabaseInfo {
     pub name: String,
     pub tables: Vec<TableInfo>,
@@ -177,6 +183,7 @@ pub struct DatabaseInfo {
 
 /// 表的简要信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TableInfo {
     pub name: String,
     pub table_type: TableType,

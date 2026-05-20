@@ -68,7 +68,11 @@ export const useConnectionsStore = defineStore('connections', () => {
       const password = await tauriCommands.loadPassword(id)
       config.password = password
 
+      // 验证连接可用
       await tauriCommands.testConnection(config)
+      // 注册连接（存入 ConnectionRegistry，供后续命令使用）
+      await tauriCommands.connect(config)
+
       activeConnectionId.value = id
       await loadTree(id)
     } catch (e) {
