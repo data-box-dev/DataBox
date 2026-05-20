@@ -61,6 +61,7 @@ pub fn run() {
             // query
             query::execute_sql,
             query::execute_batch,
+            query::execute_multi,
             // config
             config::save_connections,
             config::load_connections,

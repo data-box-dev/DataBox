@@ -17,6 +17,7 @@ import ConnectionDialog from '@/components/sidebar/ConnectionDialog.vue'
 import QueryHistory from '@/components/sidebar/QueryHistory.vue'
 import SqlEditor from '@/components/editor/SqlEditor.vue'
 import QueryResult from '@/components/result/QueryResult.vue'
+import MultiResult from '@/components/result/MultiResult.vue'
 import type { ConnectionConfig } from '@/types/database'
 
 const connectionsStore = useConnectionsStore()
@@ -34,6 +35,18 @@ onMounted(() => {
 function handleRun() {
   if (connectionsStore.activeConnectionId && queryStore.editorContent) {
     queryStore.execute(
+      connectionsStore.activeConnectionId,
+      queryStore.editorContent,
+    )
+  }
+}
+
+function handleRunAll() {
+  if (
+    connectionsStore.activeConnectionId &&
+    queryStore.editorContent
+  ) {
+    queryStore.executeMulti(
       connectionsStore.activeConnectionId,
       queryStore.editorContent,
     )
@@ -76,7 +89,6 @@ function handleConnectionDeleted(id: string) {
 }
 
 function handleExpand(keys: string[]) {
-  // 先计算哪些是首次展开的（跟之前的 expandedNodes 对比）
   const prev = new Set([...connectionsStore.expandedNodes])
   const newlyExpanded = keys.filter(
     (k) => !prev.has(k) && k.includes('-tbl-'),
@@ -84,7 +96,6 @@ function handleExpand(keys: string[]) {
 
   connectionsStore.expandedNodes = new Set(keys)
 
-  // 懒加载新展开的表节点的列信息
   for (const tableNodeId of newlyExpanded) {
     connectionsStore.loadColumns(tableNodeId)
   }
@@ -99,6 +110,7 @@ function handleExpand(keys: string[]) {
           :connection-id="connectionsStore.activeConnectionId"
           :is-executing="queryStore.isExecuting"
           @run="handleRun"
+          @run-all="handleRunAll"
           @stop="handleStop"
           @new-connection="handleNewConnection"
           @history="handleHistory"
@@ -145,12 +157,28 @@ function handleExpand(keys: string[]) {
                         sql,
                       )
                     "
+                    @execute-multi="(sql) =>
+                      queryStore.executeMulti(
+                        connectionsStore.activeConnectionId!,
+                        sql,
+                      )
+                    "
                   />
                 </div>
               </template>
               <template #2>
                 <div class="result-section">
-                  <QueryResult :result="queryStore.currentResult" />
+                  <MultiResult
+                    v-if="queryStore.multiResults.length > 0"
+                    :results="queryStore.multiResults"
+                  />
+                  <QueryResult
+                    v-else-if="queryStore.currentResult"
+                    :result="queryStore.currentResult"
+                  />
+                  <div v-else class="placeholder">
+                    执行查询以查看结果
+                  </div>
                 </div>
               </template>
             </NSplit>
@@ -169,7 +197,11 @@ function handleExpand(keys: string[]) {
           | {{ connectionsStore.activeConnection.database }}
         </span>
         <span v-else>未连接</span>
-        <span v-if="queryStore.currentResult">
+        <span v-if="queryStore.multiResults.length > 0">
+          {{ queryStore.multiResults.length }} 个结果集 ·
+          {{ queryStore.totalRows }} 行
+        </span>
+        <span v-else-if="queryStore.currentResult">
           {{ queryStore.currentResult.rowCount }} 行 ·
           {{ queryStore.currentResult.elapsedMs }}ms
         </span>
@@ -220,5 +252,13 @@ function handleExpand(keys: string[]) {
 }
 .h-100% {
   height: 100%;
+}
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--n-text-color-3);
+  font-size: 14px;
 }
 </style>

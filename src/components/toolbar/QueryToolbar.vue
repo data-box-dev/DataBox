@@ -19,6 +19,7 @@ const emit = defineEmits<{
   history: []
   settings: []
   newConnection: []
+  runAll: []
 }>()
 
 const store = useConnectionsStore()
@@ -39,6 +40,19 @@ const store = useConnectionsStore()
           </NButton>
         </template>
         <span>运行 (Ctrl+Enter)</span>
+      </NTooltip>
+      <NTooltip placement="bottom">
+        <template #trigger>
+          <NButton
+            size="small"
+            @click="emit('runAll')"
+            :loading="isExecuting"
+            quaternary
+          >
+            全部执行
+          </NButton>
+        </template>
+        <span>执行所有语句 (Ctrl+Shift+Enter)</span>
       </NTooltip>
       <NTooltip placement="bottom">
         <template #trigger>

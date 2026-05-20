@@ -80,6 +80,10 @@ export const tauriCommands = {
     return invoke<QueryResult>('execute_sql', { connId, sql })
   },
 
+  async executeMulti(connId: string, sql: string): Promise<QueryResult[]> {
+    return invoke<QueryResult[]>('execute_multi', { connId, sql })
+  },
+
   async executeBatch(
     connId: string,
     statements: string[],

@@ -66,3 +66,45 @@ pub async fn execute_batch(
         .await
         .map_err(|e| e.to_string())
 }
+
+/// 将 SQL 文本按分号拆分为独立语句
+fn split_sql(sql: &str) -> Vec<String> {
+    sql.split(';')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty() && !s.starts_with("--"))
+        .collect()
+}
+
+/// 多语句执行：拆分 SQL 文本，逐条执行，返回全部结果集
+#[tauri::command]
+pub async fn execute_multi(
+    conn_id: &str,
+    sql: &str,
+    registry: State<'_, ConnectionRegistry>,
+) -> Result<Vec<QueryResultJson>, String> {
+    let stmts = split_sql(sql);
+    if stmts.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // 一次创建驱动，复用连接
+    let driver = get_driver(&registry, conn_id).await?;
+
+    let mut results = Vec::with_capacity(stmts.len());
+    for stmt in stmts {
+        match driver.query(&stmt, vec![]).await {
+            Ok(result) => results.push(result.into()),
+            Err(e) => {
+                tracing::warn!("Statement failed: {} — {}", stmt, e);
+                results.push(QueryResultJson {
+                    columns: vec![],
+                    rows: vec![],
+                    row_count: 0,
+                    elapsed_ms: 0,
+                });
+            }
+        }
+    }
+
+    Ok(results)
+}
