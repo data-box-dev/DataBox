@@ -4,6 +4,8 @@ import type {
   DatabaseInfo,
   TableInfo,
   ColumnMeta,
+  ColumnSchema,
+  TableSchema,
   QueryResult,
   ExecResult,
   StoredConnection,
@@ -77,6 +79,14 @@ export const tauriCommands = {
     table: string,
   ): Promise<ColumnMeta[]> {
     return invoke<ColumnMeta[]>('list_columns', { connId, database, schema, table })
+  },
+
+  async describeTable(
+    connId: string,
+    database: string,
+    table: string,
+  ): Promise<TableSchema> {
+    return invoke<TableSchema>('describe_table', { connId, database, table })
   },
 
   // Query

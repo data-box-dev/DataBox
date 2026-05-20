@@ -16,6 +16,7 @@ import QueryToolbar from '@/components/toolbar/QueryToolbar.vue'
 import ConnectionTree from '@/components/sidebar/ConnectionTree.vue'
 import ConnectionDialog from '@/components/sidebar/ConnectionDialog.vue'
 import QueryHistory from '@/components/sidebar/QueryHistory.vue'
+import TableDetail from '@/components/sidebar/TableDetail.vue'
 import SqlEditor from '@/components/editor/SqlEditor.vue'
 import QueryResult from '@/components/result/QueryResult.vue'
 import MultiResult from '@/components/result/MultiResult.vue'
@@ -27,6 +28,8 @@ const queryStore = useQueryStore()
 const siderWidth = ref('300px')
 const showDialog = ref(false)
 const showHistory = ref(false)
+const showTableDetail = ref(false)
+const selectedTableNodeId = ref<string | null>(null)
 const editingConfig = ref<ConnectionConfig | null>(null)
 
 onMounted(() => {
@@ -101,6 +104,17 @@ function handleExpand(keys: string[]) {
     connectionsStore.loadColumns(tableNodeId)
   }
 }
+
+function handleTreeSelect(key: string) {
+  connectionsStore.setActive(key)
+  // If a table node is selected, open the detail drawer
+  if (key.includes('-tbl-')) {
+    selectedTableNodeId.value = key
+    showTableDetail.value = true
+  } else {
+    showTableDetail.value = false
+  }
+}
 </script>
 
 <template>
@@ -134,7 +148,7 @@ function handleExpand(keys: string[]) {
               :selected-key="connectionsStore.activeConnectionId"
               :loading="connectionsStore.loading"
               @expand="handleExpand"
-              @select="connectionsStore.setActive"
+              @select="handleTreeSelect"
               @new-connection="handleNewConnection"
             />
           </NLayoutSider>
@@ -231,6 +245,12 @@ function handleExpand(keys: string[]) {
     :visible="showHistory"
     @update:visible="showHistory = $event"
     @select="handleHistorySelect"
+  />
+
+  <TableDetail
+    :visible="showTableDetail"
+    :table-node-id="selectedTableNodeId"
+    @update:visible="showTableDetail = $event"
   />
 </template>
 

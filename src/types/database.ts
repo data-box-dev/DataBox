@@ -33,6 +33,25 @@ export interface ColumnMeta {
   nullable: boolean
 }
 
+export interface ColumnSchema {
+  name: string
+  dataType: string
+  nullable: boolean
+  defaultValue?: string
+  isPrimaryKey: boolean
+  isUnique: boolean
+  comment?: string
+  charMaxLength?: number
+}
+
+export interface TableSchema {
+  schema?: string
+  name: string
+  columns: ColumnSchema[]
+  indexes: { name: string; columns: string[]; isUnique: boolean; isPrimary: boolean }[]
+  primaryKeys: string[]
+}
+
 export interface QueryResult {
   columns: ColumnMeta[]
   rows: Record<string, unknown>[]
