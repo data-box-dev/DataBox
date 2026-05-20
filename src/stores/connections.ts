@@ -19,6 +19,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     try {
       await tauriCommands.saveConnection(config)
       connections.value.push(config)
+      await persistConnections()
     } catch (e) {
       error.value = `Failed to save connection: ${e}`
       throw e
@@ -37,6 +38,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     try {
       await tauriCommands.saveConnection(updated)
       connections.value[index] = updated
+      await persistConnections()
     } catch (e) {
       error.value = `Failed to update connection: ${e}`
       throw e
@@ -54,12 +56,18 @@ export const useConnectionsStore = defineStore('connections', () => {
       activeConnectionId.value = null
       treeNodes.value = []
     }
+    await persistConnections()
   }
 
   async function connect(id: string): Promise<void> {
     try {
       const config = connections.value.find((c) => c.id === id)
       if (!config) throw new Error('Connection not found')
+
+      // 从 Secure Store 加载密码
+      const password = await tauriCommands.loadPassword(id)
+      config.password = password
+
       await tauriCommands.testConnection(config)
       activeConnectionId.value = id
       await loadTree(id)
@@ -116,12 +124,32 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   async function loadConnectionsList(): Promise<void> {
     try {
-      const ids = await tauriCommands.listConnections()
-      // TODO: 通过 Tauri 命令获取每个连接的详细信息
-      // 目前只有 ID 列表，详情需在 save_connection 时持久化
-      console.log('Registered connection IDs:', ids)
+      const stored = await tauriCommands.loadConnections()
+      connections.value = stored.map((s) => ({
+        ...s,
+        password: '',
+      }))
     } catch (e) {
       error.value = `Failed to load connections: ${e}`
+    }
+  }
+
+  async function persistConnections(): Promise<void> {
+    try {
+      const stored = connections.value.map((c) => ({
+        id: c.id,
+        name: c.name,
+        driver: c.driver,
+        host: c.host,
+        port: c.port,
+        database: c.database,
+        username: c.username,
+        ssl: c.ssl,
+        options: c.options,
+      }))
+      await tauriCommands.saveConnections(stored)
+    } catch (e) {
+      console.error('Failed to persist connections:', e)
     }
   }
 

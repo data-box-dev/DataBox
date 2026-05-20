@@ -6,6 +6,7 @@ import type {
   ColumnMeta,
   QueryResult,
   ExecResult,
+  StoredConnection,
 } from '@/types/database'
 
 export const tauriCommands = {
@@ -24,6 +25,15 @@ export const tauriCommands = {
 
   async testConnection(config: ConnectionConfig): Promise<void> {
     return invoke('test_connection', { config })
+  },
+
+  // Config (persistence)
+  async loadConnections(): Promise<StoredConnection[]> {
+    return invoke<StoredConnection[]>('load_connections')
+  },
+
+  async saveConnections(connections: StoredConnection[]): Promise<void> {
+    return invoke('save_connections', { connections })
   },
 
   // Database lifecycle

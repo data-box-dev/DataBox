@@ -54,6 +54,19 @@ export interface ExecResult {
   elapsedMs: number
 }
 
+/// 持久化存储的连接配置（不含密码）
+export interface StoredConnection {
+  id: string
+  name: string
+  driver: DriverKind
+  host: string
+  port: number
+  database: string
+  username: string
+  ssl: boolean
+  options: Record<string, string>
+}
+
 export interface TreeNode {
   id: string
   kind: 'connection' | 'database' | 'schema' | 'table' | 'column'

@@ -61,6 +61,9 @@ pub fn run() {
             // query
             query::execute_sql,
             query::execute_batch,
+            // config
+            config::save_connections,
+            config::load_connections,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
