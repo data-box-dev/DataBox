@@ -1,17 +1,13 @@
 import { defineConfig, presetAttributify, presetUno } from 'unocss'
 
 export default defineConfig({
-  // ...UnoCSS options
   presets: [
-    presetUno(),
     presetAttributify(),
+    presetUno(),
   ],
-  // 可以添加自定义规则
-  rules: [
-    // ...
-  ],
-  // 可以添加快捷方式
   shortcuts: {
-    // ...
-  }
+    'h-100%': 'height: 100%',
+    'min-h-0': 'min-height: 0',
+    'flex-1': 'flex: 1',
+  },
 })
