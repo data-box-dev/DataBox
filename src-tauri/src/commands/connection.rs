@@ -42,9 +42,13 @@ pub async fn unregister_connection(
 /// 测试连接连通性（不注册，仅验证）
 #[command]
 pub async fn test_connection(
-    _config: ConnectionConfig,
+    config: ConnectionConfig,
 ) -> Result<(), String> {
-    // TODO Phase 4: 集成驱动工厂
+    use crate::commands::database::create_driver;
+
+    let driver = create_driver(&config).await?;
+    driver.ping().await?;
+    // 驱动会在函数返回时被 drop
     Ok(())
 }
 

@@ -1,24 +1,19 @@
-use crate::types::ConnectionConfig;
+use crate::commands::database::create_driver;
 use crate::connection_registry::ConnectionRegistry;
 use db_core::traits::DatabaseDriver;
-use db_postgres::PostgresDriver;
 use tauri::State;
 
-/// 驱动工厂：创建驱动实例
-async fn get_or_create_driver(
-    config: &ConnectionConfig,
+/// 从 registry 取配置并重建驱动
+async fn get_driver(
     registry: &ConnectionRegistry,
+    conn_id: &str,
 ) -> Result<Box<dyn DatabaseDriver>, String> {
-    // 根据配置的驱动类型创建实例
-    match config.driver {
-        db_core::types::DriverKind::Postgres => {
-            let driver = PostgresDriver::connect(config)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(Box::new(driver))
-        }
-        _ => Err(format!("Driver {:?} not yet implemented", config.driver)),
-    }
+    let config_arc = registry
+        .get_config(conn_id)
+        .await
+        .ok_or("Connection not found")?;
+    let config = config_arc.lock().unwrap().clone();
+    create_driver(&config).await
 }
 
 /// 执行单条 SQL
@@ -28,31 +23,23 @@ pub async fn execute_sql(
     sql: &str,
     registry: State<'_, ConnectionRegistry>,
 ) -> Result<crate::types::QueryResult, String> {
-    let entry = registry.get(conn_id).await.ok_or("Connection not found")?;
-
-    let entry_guard = entry.lock().await;
-    let driver_guard = entry_guard.driver.lock().await;
-
-    if let Some(driver) = driver_guard.as_ref() {
-        // 从 registry 恢复驱动实例（需要通过 Any 向下转型）
-        // 当前为简化实现：每次都创建新驱动
-    }
-
-    drop(driver_guard);
-    drop(entry_guard);
-
-    // TODO: 集成连接配置以恢复驱动
-    // 当前简化：仅返回错误提示
-    Err("Driver restoration not yet implemented. Use query command after connection.".to_string())
+    let driver = get_driver(&registry, conn_id).await?;
+    driver
+        .query(sql, vec![])
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 批量执行 SQL（事务内）
 #[tauri::command]
 pub async fn execute_batch(
     conn_id: &str,
-    _statements: Vec<String>,
+    statements: Vec<String>,
     registry: State<'_, ConnectionRegistry>,
 ) -> Result<Vec<crate::types::ExecResult>, String> {
-    let _entry = registry.get(conn_id).await.ok_or("Connection not found")?;
-    Err("Not yet implemented".to_string())
+    let driver = get_driver(&registry, conn_id).await?;
+    driver
+        .execute_batch(statements)
+        .await
+        .map_err(|e| e.to_string())
 }

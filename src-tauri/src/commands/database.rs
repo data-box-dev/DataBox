@@ -1,4 +1,3 @@
-use crate::state::AppState;
 use crate::types::ConnectionConfig;
 use db_core::traits::DatabaseDriver;
 use db_postgres::PostgresDriver;
@@ -47,26 +46,43 @@ pub async fn create_driver(
     }
 }
 
-/// 建立数据库连接并注册到 AppState
+/// 建立数据库连接并注册到 ConnectionRegistry
 #[tauri::command]
 pub async fn connect(
     config: ConnectionConfig,
-    state: State<'_, AppState>,
+    registry: State<'_, ConnectionRegistry>,
 ) -> Result<String, String> {
-    let driver = create_driver(&config).await?;
-    let handle = state.register("driver-handle".to_string());
-    // TODO: 将 driver 实例存入 ConnectionRegistry
-    Ok(handle)
+    // 验证连接可用（创建驱动 + ping）
+    let _driver = create_driver(&config).await?;
+
+    // 生成连接 ID
+    let conn_id = if config.id.is_empty() {
+        uuid::Uuid::new_v4().to_string()
+    } else {
+        config.id.clone()
+    };
+
+    // 存入 ConnectionRegistry（配置用于后续按需重建驱动）
+    registry.register(conn_id.clone(), config).await;
+
+    Ok(conn_id)
 }
 
-/// 检查连接是否存活
+/// 检查连接是否存活（从 registry 取配置，重建驱动后 ping）
 #[tauri::command]
 pub async fn ping(
-    _conn_id: &str,
-    state: State<'_, AppState>,
+    conn_id: &str,
+    registry: State<'_, ConnectionRegistry>,
 ) -> Result<(), String> {
-    let _handle = state.get(_conn_id).ok_or("Connection not found")?;
-    // TODO: 调用驱动的 ping() 方法
+    let config_arc = registry
+        .get_config(conn_id)
+        .await
+        .ok_or("Connection not found")?;
+    let config = config_arc.lock().unwrap().clone();
+    drop(config_arc);
+
+    let driver = create_driver(&config).await?;
+    driver.ping().await?;
     Ok(())
 }
 
@@ -74,8 +90,9 @@ pub async fn ping(
 #[tauri::command]
 pub async fn disconnect(
     conn_id: &str,
-    state: State<'_, AppState>,
+    registry: State<'_, ConnectionRegistry>,
 ) -> Result<(), String> {
-    state.remove(conn_id);
+    registry.remove(conn_id).await;
     Ok(())
 }
+
