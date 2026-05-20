@@ -30,3 +30,7 @@ coverage
 *.tsbuildinfo
 
 target/
+
+# pnpm workspace store
+.pnpm-store/
+.superpowers/

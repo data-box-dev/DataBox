@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, h, watch } from 'vue'
+import type { VNode } from 'vue'
 import {
-  NButton,
-  NTag,
   NFlex,
   NSplit,
   NSpin,
+  NButton,
+  NTag,
+  NText,
+  NEmpty,
   NModal,
   NForm,
   NFormItem,
@@ -13,33 +16,29 @@ import {
   NSelect,
   NInputNumber,
   NSwitch,
-  NMessageProvider,
   NPopover,
-  NScrollbar,
-  NText,
-  NEmpty,
-  NDataTable,
-  NDrawer,
-  NDrawerContent,
   NList,
   NListItem,
   NThing,
   NSpace,
   NTooltip,
-  NPopconfirm,
+  NTree,
 } from 'naive-ui'
 import type { FormInst, FormItemRule } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
-import type { ConnectionConfig, DriverKind, ColumnSchema, TableSchema } from '@/types/database'
+import type { ConnectionConfig, DriverKind } from '@/types/database'
 import { useConnectionsStore } from '@/stores/connections'
 import { useQueryStore } from '@/stores/query'
 import { useSavedQueriesStore } from '@/stores/savedQueries'
 import { tauriCommands } from '@/composables/useTauriCommands'
+import SqlEditor from '@/components/editor/SqlEditor.vue'
+import QueryResult from '@/components/result/QueryResult.vue'
+import TableDetail from '@/components/sidebar/TableDetail.vue'
 
 const connectionsStore = useConnectionsStore()
 const queryStore = useQueryStore()
 const savedStore = useSavedQueriesStore()
 
+// ── UI State ──
 const showDialog = ref(false)
 const showHistory = ref(false)
 const showTableDetail = ref(false)
@@ -51,6 +50,7 @@ onMounted(() => {
   connectionsStore.loadConnectionsList()
 })
 
+// ── Toolbar actions ──
 function handleRun() {
   if (connectionsStore.activeConnectionId && queryStore.editorContent) {
     queryStore.execute(connectionsStore.activeConnectionId, queryStore.editorContent)
@@ -69,7 +69,7 @@ function handleHistory() {
   showHistory.value = !showHistory.value
 }
 
-function handleHistorySelect(sql: string): void {
+function handleHistorySelect(sql: string) {
   queryStore.setEditorContent(sql)
   showHistory.value = false
 }
@@ -92,16 +92,13 @@ async function handleConnectionSaved(config: ConnectionConfig) {
   }
 }
 
-function handleConnectionDeleted(id: string) {
-  connectionsStore.removeConnection(id)
-}
-
+// ── Tree ──
 function handleExpand(keys: string[]) {
   const prev = new Set([...connectionsStore.expandedNodes])
   const newlyExpanded = keys.filter(k => !prev.has(k) && k.includes('-tbl-'))
   connectionsStore.expandedNodes = new Set(keys)
-  for (const tableNodeId of newlyExpanded) {
-    connectionsStore.loadColumns(tableNodeId)
+  for (const tid of newlyExpanded) {
+    connectionsStore.loadColumns(tid)
   }
 }
 
@@ -115,14 +112,13 @@ function handleTreeSelect(key: string) {
   }
 }
 
-// ── ConnectionDialog ──
+// ── Connection dialog ──
 const dialogFormRef = ref<FormInst>()
 const dialogTesting = ref(false)
 const dialogLoading = ref(false)
-const dialogMessage = ref<ReturnType<typeof useMessage> | null>(null)
 
-const formModel = ref<Partial<ConnectionConfig>>({
-  driver: 'Postgres',
+const formModel = ref({
+  driver: 'Postgres' as DriverKind,
   name: '',
   host: 'localhost',
   port: 5432,
@@ -130,7 +126,6 @@ const formModel = ref<Partial<ConnectionConfig>>({
   username: '',
   password: '',
   ssl: false,
-  options: {},
 })
 
 const driverOptions = [
@@ -151,11 +146,21 @@ const rules: Record<string, FormItemRule[]> = {
   host: [{ required: true, message: '请输入主机地址', trigger: 'blur' }],
 }
 
-watch(() => props.visible, (visible) => {
-  if (visible && props.editingConfig) {
-    formModel.value = { ...props.editingConfig }
-  } else if (visible) {
-    formModel.value = { driver: 'Postgres', name: '', host: 'localhost', port: 5432, database: '', username: '', password: '', ssl: false, options: {} }
+watch(() => showDialog.value, (open) => {
+  if (!open) return
+  if (editingConfig.value) {
+    formModel.value = {
+      driver: editingConfig.value.driver,
+      name: editingConfig.value.name,
+      host: editingConfig.value.host,
+      port: editingConfig.value.port,
+      database: editingConfig.value.database,
+      username: editingConfig.value.username,
+      password: editingConfig.value.password,
+      ssl: editingConfig.value.ssl,
+    }
+  } else {
+    formModel.value = { driver: 'Postgres', name: '', host: 'localhost', port: 5432, database: '', username: '', password: '', ssl: false }
   }
 })
 
@@ -163,35 +168,58 @@ watch(() => formModel.value.driver, (driver) => {
   if (driver) formModel.value.port = portByDriver[driver as DriverKind]
 })
 
-async function testConnection(): Promise<void> {
+async function testConnection() {
   dialogTesting.value = true
   try {
     await dialogFormRef.value?.validate()
     await tauriCommands.testConnection(formModel.value as ConnectionConfig)
-    dialogMessage.value?.success('连接成功')
   } catch (e) {
-    dialogMessage.value?.error(`连接失败: ${e}`)
+    // error shown by form validation
   } finally {
     dialogTesting.value = false
   }
 }
 
-async function saveConnection(): Promise<void> {
+async function saveConnection() {
   try {
     await dialogFormRef.value?.validate()
     dialogLoading.value = true
     const config: ConnectionConfig = {
       ...formModel.value,
-      id: props.editingConfig?.id || crypto.randomUUID(),
+      id: editingConfig.value?.id || crypto.randomUUID(),
+      password: '',
+      options: {},
     } as ConnectionConfig
-    await emit('saved', config)
-    emit('update:visible', false)
-    dialogMessage.value?.success('连接已保存')
+    handleConnectionSaved(config)
+    showDialog.value = false
   } catch {
-    // validation error handled by naive-ui
+    // validation error
   } finally {
     dialogLoading.value = false
   }
+}
+
+// ── Tree icon helper ──
+function treeIcon(kind: string): VNode {
+  const icons: Record<string, string> = {
+    connection: '🗄️', database: '📁', table: '📋', column: '│', schema: '📂',
+  }
+  return h('span', { class: 'tree-icon' }, icons[kind] || '')
+}
+
+function buildTreeData() {
+  return connectionsStore.treeNodes.map(node => ({
+    key: node.id,
+    label: node.name,
+    isLeaf: node.kind === 'column',
+    prefix: () => treeIcon(node.kind),
+    children: node.children?.map(child => ({
+      key: child.id,
+      label: child.name,
+      isLeaf: child.kind === 'column',
+      prefix: () => treeIcon(child.kind),
+    })),
+  }))
 }
 </script>
 
@@ -199,20 +227,16 @@ async function saveConnection(): Promise<void> {
   <div class="app-root">
     <!-- ══ Toolbar ══ -->
     <header class="toolbar-header">
-      <NFlex align="center" size="small" class="toolbar-inner">
+      <NFlex align="center" size="small" class="toolbar-row">
         <NTooltip placement="bottom">
           <template #trigger>
-            <NButton size="small" @click="handleRun" :loading="queryStore.isExecuting" quaternary class="btn-run">
-              运行
-            </NButton>
+            <NButton size="small" @click="handleRun" :loading="queryStore.isExecuting" quaternary class="btn-run">运行</NButton>
           </template>
           <span>运行当前语句 (Ctrl+Enter)</span>
         </NTooltip>
         <NTooltip placement="bottom">
           <template #trigger>
-            <NButton size="small" @click="handleRunAll" :loading="queryStore.isExecuting" quaternary>
-              全部执行
-            </NButton>
+            <NButton size="small" @click="handleRunAll" :loading="queryStore.isExecuting" quaternary>全部执行</NButton>
           </template>
           <span>执行所有语句 (Ctrl+Shift+Enter)</span>
         </NTooltip>
@@ -222,9 +246,7 @@ async function saveConnection(): Promise<void> {
           </template>
           <span>停止查询</span>
         </NTooltip>
-
-        <span class="toolbar-divider" />
-
+        <span class="sep" />
         <NTooltip placement="bottom">
           <template #trigger>
             <NButton size="small" quaternary @click="showSaveQuery = !showSaveQuery">保存</NButton>
@@ -237,9 +259,7 @@ async function saveConnection(): Promise<void> {
           </template>
           <span>查询历史</span>
         </NTooltip>
-
-        <span v-if="connectionsStore.activeConnectionId" class="toolbar-divider" />
-
+        <span v-if="connectionsStore.activeConnectionId" class="sep" />
         <template v-if="connectionsStore.activeConnectionId">
           <NSelect
             :value="connectionsStore.currentDatabase"
@@ -251,9 +271,7 @@ async function saveConnection(): Promise<void> {
             @update:value="(v) => v && connectionsStore.switchDatabase(v)"
           />
         </template>
-
-        <div class="toolbar-spacer" />
-
+        <div class="flex-1" />
         <NTooltip placement="bottom">
           <template #trigger>
             <NButton size="small" quaternary @click="handleNewConnection">+ 连接</NButton>
@@ -263,43 +281,17 @@ async function saveConnection(): Promise<void> {
       </NFlex>
     </header>
 
-    <!-- ══ Main Area ══ -->
+    <!-- ══ Main ══ -->
     <div class="main-area">
       <!-- Sidebar -->
       <aside class="sidebar">
-        <div class="sidebar-header">
+        <div class="sidebar-hdr">
           <span class="sidebar-title">连接浏览器</span>
           <NButton text size="small" @click="handleNewConnection">+ 新建</NButton>
         </div>
         <NSpin :show="connectionsStore.loading">
           <NTree
-            :data="connectionsStore.treeNodes.map(node => ({
-              key: node.id,
-              label: node.name,
-              isLeaf: node.kind === 'column',
-              prefix: () => h('span', { class: 'tree-icon' }, { default: () => {
-                switch (node.kind) {
-                  case 'connection': return '🗄️'
-                  case 'database': return '📁'
-                  case 'table': return '📋'
-                  case 'column': return '│'
-                  default: return ''
-                }
-              }}),
-              children: node.children?.map(child => ({
-                key: child.id,
-                label: child.name,
-                isLeaf: child.kind === 'column',
-                prefix: () => h('span', { class: 'tree-icon' }, { default: () => {
-                  switch (child.kind) {
-                    case 'database': return '📁'
-                    case 'table': return '📋'
-                    case 'column': return '│'
-                    default: return ''
-                  }
-                }}),
-              })),
-            }))"
+            :data="buildTreeData()"
             :expanded-keys="Array.from(connectionsStore.expandedNodes)"
             :selected-keys="connectionsStore.activeConnectionId ? [connectionsStore.activeConnectionId] : []"
             selectable
@@ -311,77 +303,46 @@ async function saveConnection(): Promise<void> {
       </aside>
 
       <!-- Content -->
-      <main class="content-area">
+      <main class="content">
         <NSplit direction="vertical" :default-size="0.5" :min-size="0.15" :max-size="0.85">
           <template #1>
             <div class="editor-pane">
-              <div class="pane-toolbar">
+              <div class="pane-hdr">
                 <NText depth="3" class="pane-title">编辑器</NText>
               </div>
-              <div class="editor-body">
-                <div class="line-numbers" aria-hidden="true">
-                  <pre>1</pre>
-                </div>
-                <textarea
-                  :value="queryStore.editorContent"
-                  @input="queryStore.setEditorContent(($event.target as HTMLTextAreaElement).value)"
-                  @keydown="(e: KeyboardEvent) => {
-                    const ta = e.target as HTMLTextAreaElement
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                      e.preventDefault()
-                      if (queryStore.editorContent.trim() && connectionsStore.activeConnectionId)
-                        queryStore.execute(connectionsStore.activeConnectionId, queryStore.editorContent)
-                      return
-                    }
-                    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Enter') {
-                      e.preventDefault()
-                      if (queryStore.editorContent.trim() && connectionsStore.activeConnectionId)
-                        queryStore.executeMulti(connectionsStore.activeConnectionId, queryStore.editorContent)
-                      return
-                    }
-                    if (e.key === 'Tab') {
-                      e.preventDefault()
-                      const s = ta.selectionStart, en = ta.selectionEnd, v = ta.value
-                      const nv = v.substring(0, s) + '  ' + v.substring(en)
-                      queryStore.setEditorContent(nv)
-                      requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = s + 2 })
-                    }
-                  }"
-                  class="sql-textarea"
-                  spellcheck="false"
-                  autocomplete="off"
-                  autocorrect="off"
-                  autocapitalize="off"
-                  placeholder="输入 SQL 查询...&#10;Ctrl+Enter 运行当前语句&#10;Ctrl+Shift+Enter 执行所有语句&#10;Tab 插入缩进"
-                />
-              </div>
+              <SqlEditor
+                v-model="queryStore.editorContent"
+                :connection-id="connectionsStore.activeConnectionId"
+                @execute="(sql) => { if (connectionsStore.activeConnectionId) queryStore.execute(connectionsStore.activeConnectionId, sql) }"
+                @execute-multi="(sql) => { if (connectionsStore.activeConnectionId) queryStore.executeMulti(connectionsStore.activeConnectionId, sql) }"
+              />
             </div>
           </template>
           <template #2>
             <div class="result-pane">
-              <div class="pane-toolbar">
-                <NTag v-if="queryStore.currentResult" size="tiny" :bordered="false" round type="info">
-                  {{ queryStore.currentResult.rowCount }} 行
-                </NTag>
-                <NText v-else-if="queryStore.multiResults.length > 0" depth="3" class="pane-title">
-                  {{ queryStore.multiResults.length }} 个结果集 · {{ queryStore.totalRows }} 行
-                </NText>
-                <NText v-else depth="3" class="pane-title">结果</NText>
-                <div class="pane-spacer" />
+              <div class="pane-hdr">
+                <template v-if="queryStore.multiResults.length > 0">
+                  <NTag size="tiny" :bordered="false" round type="info">{{ queryStore.multiResults.length }} 个结果集</NTag>
+                  <NText depth="3">{{ queryStore.totalRows }} 行</NText>
+                </template>
+                <template v-else-if="queryStore.currentResult">
+                  <NTag size="tiny" :bordered="false" round type="info">{{ queryStore.currentResult.rowCount }} 行</NTag>
+                  <NText depth="3">{{ queryStore.currentResult.elapsedMs }}ms</NText>
+                </template>
+                <template v-else>
+                  <NText depth="3" class="pane-title">结果</NText>
+                </template>
+                <div class="flex-1" />
                 <NTooltip v-if="queryStore.currentResult" placement="top">
                   <template #trigger>
                     <NButton size="tiny" quaternary @click="() => {
                       if (!queryStore.currentResult) return
                       const cols = queryStore.currentResult.columns
                       const rows = queryStore.currentResult.rows
-                      const header = cols.map(c => c.name).join(',')
-                      const lines = rows.map(r => cols.map(c => {
-                        const v = r[c.name]
-                        return (v === null || v === undefined) ? 'NULL' : String(v)
-                      }).join(',')).join('\n')
+                      const header = cols.map((c: any) => c.name).join(',')
+                      const lines = rows.map((r: any) => cols.map((c: any) => { const v = r[c.name]; return (v == null) ? 'NULL' : String(v) }).join(',')).join('\n')
                       const blob = new Blob(['﻿' + [header, ...lines].join('\n')], { type: 'text/csv;charset=utf-8;' })
-                      const url = URL.createObjectURL(blob)
-                      const a = document.createElement('a'); a.href = url; a.download = 'query_result.csv'; a.click(); URL.revokeObjectURL(url)
+                      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'query_result.csv'; a.click(); URL.revokeObjectURL(url)
                     }">导出 CSV</NButton>
                   </template>
                   <span>下载为 CSV</span>
@@ -389,64 +350,19 @@ async function saveConnection(): Promise<void> {
               </div>
               <div class="result-body">
                 <template v-if="queryStore.multiResults.length > 0">
-                  <div v-for="(result, idx) in queryStore.multiResults" :key="idx" class="multi-result-block">
-                    <div class="multi-label">结果 {{ idx + 1 }} <span v-if="result.rowCount > 0">{{ result.rowCount }} 行 · {{ result.elapsedMs }}ms</span><span v-else class="empty-label">无返回</span></div>
-                    <NDataTable
-                      v-if="result.rowCount > 0 || result.columns.length > 0"
-                      :columns="result.columns.map(col => ({
-                        title: col.name,
-                        key: col.name,
-                        sorter: 'default',
-                        resizable: true,
-                        minWidth: 80,
-                        ellipsis: { tooltip: { width: 'trigger', maxWidth: 600 } },
-                        render(row: Record<string, unknown>) {
-                          const v = row[col.name]
-                          if (v === null || v === undefined) return 'NULL'
-                          if (typeof v === 'object') { try { return JSON.stringify(v) } catch { return String(v) } }
-                          return String(v)
-                        },
-                      }))"
-                      :data="result.rows"
-                      :row-key="(row: Record<string, unknown>) => JSON.stringify(row)"
-                      :virtual-scroll="result.rowCount > 1000"
-                      :max-height="400"
-                      :striped="true"
-                      :bordered="false"
-                      :single-line="false"
-                      size="small"
-                    />
+                  <div v-for="(result, idx) in queryStore.multiResults" :key="idx" class="multi-block">
+                    <div class="multi-label">
+                      结果 {{ idx + 1 }}
+                      <span v-if="result.rowCount > 0">{{ result.rowCount }} 行 · {{ result.elapsedMs }}ms</span>
+                      <span v-else class="dim">无返回</span>
+                    </div>
+                    <QueryResult v-if="result.rowCount > 0 || result.columns.length > 0" :result="result" />
                   </div>
                 </template>
-                <template v-else-if="queryStore.currentResult">
-                  <NDataTable
-                    v-if="queryStore.currentResult.rowCount > 0"
-                    :columns="queryStore.currentResult.columns.map(col => ({
-                      title: col.name,
-                      key: col.name,
-                      sorter: 'default',
-                      resizable: true,
-                      minWidth: 80,
-                      ellipsis: { tooltip: { width: 'trigger', maxWidth: 600 } },
-                      render(row: Record<string, unknown>) {
-                        const v = row[col.name]
-                        if (v === null || v === undefined) return 'NULL'
-                        if (typeof v === 'object') { try { return JSON.stringify(v) } catch { return String(v) } }
-                        return String(v)
-                      },
-                    }))"
-                    :data="queryStore.currentResult.rows"
-                    :row-key="(row: Record<string, unknown>) => JSON.stringify(row)"
-                    :virtual-scroll="queryStore.currentResult.rowCount > 1000"
-                    :max-height="500"
-                    :striped="true"
-                    :bordered="false"
-                    :single-line="false"
-                    size="small"
-                  />
-                  <NEmpty v-else description="查询成功，无返回行" size="small" />
+                <template v-else>
+                  <QueryResult v-if="queryStore.currentResult" :result="queryStore.currentResult" />
+                  <NEmpty v-else description="执行查询以查看结果" size="small" />
                 </template>
-                <NEmpty v-else description="执行查询以查看结果" size="small" />
               </div>
             </div>
           </template>
@@ -456,17 +372,23 @@ async function saveConnection(): Promise<void> {
 
     <!-- ══ Status Bar ══ -->
     <footer class="status-bar">
-      <NFlex justify="space-between" align="center" size="small" style="width: 100%">
-        <span v-if="connectionsStore.activeConnection" class="status-text">
+      <NFlex justify="space-between" align="center" size="small" style="width:100%">
+        <template v-if="connectionsStore.activeConnection">
           <NTag size="tiny" :bordered="false" round type="info">{{ connectionsStore.activeConnection.driver }}</NTag>
-          <span class="conn-name">{{ connectionsStore.activeConnection.name }}</span>
-          <span class="conn-host">{{ connectionsStore.activeConnection.host }}:{{ connectionsStore.activeConnection.port }}</span>
-          <span class="conn-db">/ {{ connectionsStore.activeConnection.database }}</span>
-        </span>
-        <span v-else class="status-disconnected">未连接</span>
-        <span v-if="queryStore.multiResults.length > 0" class="status-text">{{ queryStore.multiResults.length }} 个结果集 · {{ queryStore.totalRows }} 行</span>
-        <span v-else-if="queryStore.currentResult" class="status-text">{{ queryStore.currentResult.rowCount }} 行 · {{ queryStore.currentResult.elapsedMs }}ms</span>
-        <span v-else class="status-text">{{ new Date().toLocaleTimeString('zh-CN') }}</span>
+          <span class="s-name">{{ connectionsStore.activeConnection.name }}</span>
+          <span class="s-host">{{ connectionsStore.activeConnection.host }}:{{ connectionsStore.activeConnection.port }}</span>
+          <span class="s-db">/ {{ connectionsStore.activeConnection.database }}</span>
+        </template>
+        <span v-else class="s-dim">未连接</span>
+        <template v-if="queryStore.multiResults.length > 0">
+          <span>{{ queryStore.multiResults.length }} 个结果集 · {{ queryStore.totalRows }} 行</span>
+        </template>
+        <template v-else-if="queryStore.currentResult">
+          <span>{{ queryStore.currentResult.rowCount }} 行 · {{ queryStore.currentResult.elapsedMs }}ms</span>
+        </template>
+        <template v-else>
+          <span>{{ new Date().toLocaleTimeString('zh-CN') }}</span>
+        </template>
       </NFlex>
     </footer>
 
@@ -507,12 +429,12 @@ async function saveConnection(): Promise<void> {
     <!-- ══ Query History ══ -->
     <NPopover :show="showHistory" placement="bottom-start" :arrow-point-to-center="false" style="width: 520px" @update:show="showHistory = $event">
       <template #trigger><span /></template>
-      <div class="query-history">
-        <div class="history-header">
+      <div class="history-panel">
+        <div class="hist-hdr">
           <NText strong>查询历史</NText>
-          <NText depth="3" class="history-count">{{ queryStore.queryHistory.length }} 条</NText>
+          <NText depth="3">{{ queryStore.queryHistory.length }} 条</NText>
         </div>
-        <NList v-if="queryStore.queryHistory.length > 0" bordered hoverable clickable class="history-list">
+        <NList v-if="queryStore.queryHistory.length > 0" bordered hoverable clickable class="hist-list">
           <NListItem v-for="item in queryStore.queryHistory" :key="item.id" @click="() => { handleHistorySelect(item.sql) }">
             <NThing :title="item.sql" :description="new Date(item.timestamp).toLocaleTimeString('zh-CN')" #header-extra>
               <NSpace :size="4" align="center">
@@ -523,29 +445,18 @@ async function saveConnection(): Promise<void> {
           </NListItem>
         </NList>
         <NEmpty v-else description="暂无查询历史" size="small" />
-        <div v-if="queryStore.queryHistory.length > 0" class="history-footer">
+        <div v-if="queryStore.queryHistory.length > 0" class="hist-footer">
           <NButton text size="tiny" @click="() => { queryStore.queryHistory = []; showHistory = false }">清空历史</NButton>
         </div>
       </div>
     </NPopover>
 
     <!-- ══ Table Detail ══ -->
-    <NDrawer :show="showTableDetail" :width="420" placement="right" :native-scrollbar="false" @update:show="(v: boolean) => showTableDetail = v">
-      <NDrawerContent :title="(() => { if (!selectedTableNodeId) return '表详情'; const m = selectedTableNodeId.match(/-tbl-(.+)$/); return m ? m[1] : '表详情' })()" :native-scrollbar="false" closable>
-        <NSpin :show="false">
-          <template v-if="selectedTableNodeId">
-            <TableDetail :visible="showTableDetail" :table-node-id="selectedTableNodeId" @update:visible="showTableDetail = $event" />
-          </template>
-          <NEmpty v-else description="请选择一个表" />
-        </NSpin>
-      </NDrawerContent>
-    </NDrawer>
-
-    <!-- ══ Saved Queries ══ -->
-    <NPopover :show="showSaveQuery" placement="bottom-start" trigger="manual" :keep-alive-on-hide="true" @update:show="showSaveQuery = $event">
-      <template #trigger><span /></template>
-      <SavedQueriesPanel :visible="showSaveQuery" @update:visible="showSaveQuery = $event" />
-    </NPopover>
+    <TableDetail
+      :visible="showTableDetail"
+      :table-node-id="selectedTableNodeId"
+      @update:visible="showTableDetail = $event"
+    />
   </div>
 </template>
 
@@ -558,8 +469,6 @@ async function saveConnection(): Promise<void> {
   color: var(--db-text);
   overflow: hidden;
 }
-
-/* ── Toolbar ── */
 .toolbar-header {
   height: 36px;
   flex-shrink: 0;
@@ -567,24 +476,18 @@ async function saveConnection(): Promise<void> {
   border-bottom: 1px solid var(--db-border);
   padding: 0 6px;
 }
-.toolbar-inner {
+.toolbar-row {
   height: 100%;
 }
-.btn-run {
-  font-weight: 500;
-}
-.toolbar-divider {
-  width: 1px;
-  height: 18px;
+.btn-run { font-weight: 500; }
+.sep {
+  width: 1px; height: 18px;
   background: var(--db-border);
   margin: 0 6px;
   flex-shrink: 0;
 }
-.toolbar-spacer {
-  flex: 1;
-}
+.flex-1 { flex: 1; }
 
-/* ── Main Area ── */
 .main-area {
   flex: 1;
   display: flex;
@@ -592,7 +495,7 @@ async function saveConnection(): Promise<void> {
   overflow: hidden;
 }
 
-/* ── Sidebar ── */
+/* sidebar */
 .sidebar {
   width: 260px;
   flex-shrink: 0;
@@ -602,7 +505,7 @@ async function saveConnection(): Promise<void> {
   background: var(--db-bg-panel);
   overflow: hidden;
 }
-.sidebar-header {
+.sidebar-hdr {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -625,8 +528,8 @@ async function saveConnection(): Promise<void> {
   margin-right: 4px;
 }
 
-/* ── Content Area ── */
-.content-area {
+/* content */
+.content {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -634,21 +537,21 @@ async function saveConnection(): Promise<void> {
   overflow: hidden;
 }
 
-/* ── Editor ── */
-.editor-pane {
+/* panes */
+.editor-pane, .result-pane {
   display: flex;
   flex-direction: column;
   min-height: 0;
   background: var(--db-bg-editor);
 }
-.pane-toolbar {
+.pane-hdr {
   display: flex;
   align-items: center;
+  gap: 8px;
   padding: 2px 8px;
   border-bottom: 1px solid var(--db-border);
   background: var(--db-bg-toolbar);
   flex-shrink: 0;
-  gap: 8px;
   height: 26px;
 }
 .pane-title {
@@ -656,73 +559,15 @@ async function saveConnection(): Promise<void> {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.pane-spacer {
-  flex: 1;
-}
-.editor-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  overflow: hidden;
-  font-family: 'JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 13px;
-  line-height: 1.55;
-}
-.line-numbers {
-  flex-shrink: 0;
-  width: 42px;
-  padding: 10px 4px 10px 0;
-  text-align: right;
-  color: var(--n-text-color-3);
-  user-select: none;
-  border-right: 1px solid var(--db-border);
-  background: var(--db-bg-panel);
-  overflow: hidden;
-}
-.line-numbers pre {
-  margin: 0;
-  line-height: inherit;
-}
-.sql-textarea {
-  flex: 1;
-  min-width: 0;
-  padding: 10px 12px;
-  border: none;
-  resize: none;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  background: var(--db-bg-editor);
-  color: var(--db-text);
-  outline: none;
-  tab-size: 2;
-  overflow: auto;
-  white-space: pre;
-  overflow-wrap: normal;
-}
-.sql-textarea::placeholder {
-  color: var(--n-text-color-3);
-  opacity: 0.5;
-}
-
-/* ── Result ── */
-.result-pane {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
 .result-body {
   flex: 1;
   min-height: 0;
   overflow: auto;
 }
-.multi-result-block {
+.multi-block {
   border-bottom: 1px solid var(--db-border);
 }
-.multi-result-block:last-child {
-  border-bottom: none;
-}
+.multi-block:last-child { border-bottom: none; }
 .multi-label {
   display: flex;
   align-items: center;
@@ -733,13 +578,9 @@ async function saveConnection(): Promise<void> {
   background: var(--db-bg-toolbar);
   border-bottom: 1px solid var(--db-border);
 }
-.empty-label {
-  font-style: italic;
-  color: var(--n-text-color-3);
-  font-weight: normal;
-}
+.dim { color: var(--n-text-color-3); font-style: italic; font-weight: normal; }
 
-/* ── Status Bar ── */
+/* status bar */
 .status-bar {
   height: 24px;
   flex-shrink: 0;
@@ -750,42 +591,28 @@ async function saveConnection(): Promise<void> {
   color: #fff;
   font-size: 11px;
 }
-.status-text {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.conn-name { font-weight: 500; }
-.conn-host { color: rgba(255,255,255,0.65); }
-.conn-db { color: rgba(255,255,255,0.45); }
-.status-disconnected {
-  color: rgba(255,255,255,0.5);
-  font-style: italic;
-}
+.s-name { font-weight: 500; }
+.s-host { color: rgba(255,255,255,0.65); }
+.s-db { color: rgba(255,255,255,0.45); }
+.s-dim { color: rgba(255,255,255,0.5); font-style: italic; }
 
-/* ── Query History ── */
-.query-history {
+/* history */
+.history-panel {
   display: flex;
   flex-direction: column;
   max-height: 400px;
 }
-.history-header {
+.hist-hdr {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
   border-bottom: 1px solid var(--db-border);
 }
-.history-count { font-size: 12px; }
-.history-list { overflow-y: auto; max-height: 320px; flex: 1; }
-.history-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding: 4px 8px;
-  border-top: 1px solid var(--db-border);
-}
-.history-list :deep(.n-list-item) { padding: 0; }
-.history-list :deep(.n-list-item__content) { padding: 4px 0; }
-.history-list :deep(.n-thing) { --n-title-font-size: 13px; }
-.history-list :deep(.n-thing__title) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 420px; }
+.hist-list { overflow-y: auto; max-height: 320px; flex: 1; }
+.hist-footer { display: flex; justify-content: flex-end; padding: 4px 8px; border-top: 1px solid var(--db-border); }
+.hist-list :deep(.n-list-item) { padding: 0; }
+.hist-list :deep(.n-list-item__content) { padding: 4px 0; }
+.hist-list :deep(.n-thing) { --n-title-font-size: 13px; }
+.hist-list :deep(.n-thing__title) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 420px; }
 </style>
