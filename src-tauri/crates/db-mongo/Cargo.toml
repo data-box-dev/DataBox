@@ -2,5 +2,13 @@
 name = "db-mongo"
 version = "0.1.0"
 edition = "2024"
+publish = false
 
 [dependencies]
+db-core.workspace = true
+async-trait.workspace = true
+mongodb = "3"
+bson = "2"
+thiserror.workspace = true
+serde = "1"
+serde_json = "1"
