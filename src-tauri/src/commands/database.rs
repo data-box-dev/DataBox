@@ -1,15 +1,48 @@
 use crate::state::AppState;
+use crate::types::ConnectionConfig;
+use db_core::traits::DatabaseDriver;
+use db_postgres::PostgresDriver;
+use db_mysql::MySqlDriver;
+use db_sqlite::SqliteDriver;
 use tauri::State;
+
+/// 驱动工厂：根据驱动类型创建驱动实例
+pub async fn create_driver(
+    config: &ConnectionConfig,
+) -> Result<Box<dyn DatabaseDriver>, String> {
+    match config.driver {
+        db_core::types::DriverKind::Postgres => {
+            let driver = PostgresDriver::connect(config)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(Box::new(driver))
+        }
+        db_core::types::DriverKind::Mysql => {
+            let driver = MySqlDriver::connect(config)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(Box::new(driver))
+        }
+        db_core::types::DriverKind::Sqlite => {
+            let driver = SqliteDriver::connect(config)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(Box::new(driver))
+        }
+        _ => Err(format!("Driver {:?} not yet implemented", config.driver)),
+    }
+}
 
 /// 建立数据库连接并注册到 AppState
 #[tauri::command]
 pub async fn connect(
-    _config: db_core::types::ConnectionConfig,
+    config: ConnectionConfig,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    // TODO: Phase 3 驱动工厂实现后接入
-    // 返回一个临时的连接 ID
-    Ok(state.register("temp-handle".to_string()))
+    let driver = create_driver(&config).await?;
+    let handle = state.register("driver-handle".to_string());
+    // TODO: 将 driver 实例存入 ConnectionRegistry
+    Ok(handle)
 }
 
 /// 检查连接是否存活
