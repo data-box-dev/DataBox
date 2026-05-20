@@ -15,11 +15,8 @@ pub mod types;
 
 // 把最常用的类型提升到 crate 根，驱动 crate 只需 use db_core::*
 pub use error::{DbError, DbResult};
-pub use traits::{
-    CacheDriver, DatabaseDriver, DocumentDriver, FindOptions, RedisKeyType,
-};
+pub use traits::{CacheDriver, DatabaseDriver, DocumentDriver, FindOptions, RedisKeyType};
 pub use types::{
-    ColumnMeta, ColumnSchema, ConnectionConfig, DatabaseInfo, DbValue,
-    DriverKind, ExecResult, IndexSchema, QueryResult, Row, TableInfo,
-    TableSchema, TableType,
+    ColumnMeta, ColumnSchema, ConnectionConfig, DatabaseInfo, DbValue, DriverKind, ExecResult,
+    IndexSchema, QueryResult, Row, TableInfo, TableSchema, TableType,
 };

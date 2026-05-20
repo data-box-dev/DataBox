@@ -1,11 +1,8 @@
-use async_trait::async_trait;
 use crate::{
     error::DbResult,
-    types::{
-        ColumnMeta, ConnectionConfig, DatabaseInfo,
-        ExecResult, QueryResult, TableSchema,
-    },
+    types::{ColumnMeta, ConnectionConfig, DatabaseInfo, ExecResult, QueryResult, TableSchema},
 };
+use async_trait::async_trait;
 
 // ══════════════════════════════════════════════════════════════
 // 关系型数据库 trait
@@ -32,18 +29,10 @@ pub trait DatabaseDriver: Send + Sync {
 
     /// 执行 SELECT，返回完整结果集
     /// params 是位置参数，如 $1 $2（pg）或 ? ?（mysql/sqlite）
-    async fn query(
-        &self,
-        sql: &str,
-        params: Vec<serde_json::Value>,
-    ) -> DbResult<QueryResult>;
+    async fn query(&self, sql: &str, params: Vec<serde_json::Value>) -> DbResult<QueryResult>;
 
     /// 执行 INSERT / UPDATE / DELETE / DDL，返回影响行数
-    async fn execute(
-        &self,
-        sql: &str,
-        params: Vec<serde_json::Value>,
-    ) -> DbResult<ExecResult>;
+    async fn execute(&self, sql: &str, params: Vec<serde_json::Value>) -> DbResult<ExecResult>;
 
     /// 在一个事务里批量执行多条语句（全部成功才提交）
     async fn execute_batch(&self, statements: Vec<String>) -> DbResult<Vec<ExecResult>>;
@@ -60,18 +49,10 @@ pub trait DatabaseDriver: Send + Sync {
     async fn list_tables(&self, database: &str) -> DbResult<Vec<String>>;
 
     /// 获取表的完整 Schema（列、索引、主键）
-    async fn describe_table(
-        &self,
-        database: &str,
-        table: &str,
-    ) -> DbResult<TableSchema>;
+    async fn describe_table(&self, database: &str, table: &str) -> DbResult<TableSchema>;
 
     /// 快速获取列元数据（比 describe_table 轻量，用于结果集表头）
-    async fn get_columns(
-        &self,
-        database: &str,
-        table: &str,
-    ) -> DbResult<Vec<ColumnMeta>>;
+    async fn get_columns(&self, database: &str, table: &str) -> DbResult<Vec<ColumnMeta>>;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -140,12 +121,7 @@ pub trait DocumentDriver: Send + Sync {
         pipeline: Vec<serde_json::Value>,
     ) -> DbResult<Vec<serde_json::Value>>;
 
-    async fn count(
-        &self,
-        db: &str,
-        collection: &str,
-        filter: serde_json::Value,
-    ) -> DbResult<u64>;
+    async fn count(&self, db: &str, collection: &str, filter: serde_json::Value) -> DbResult<u64>;
 }
 
 /// find() 的可选参数
@@ -178,7 +154,7 @@ pub trait CacheDriver: Send + Sync {
     async fn set(&self, key: &str, value: &str, ttl_secs: Option<u64>) -> DbResult<()>;
     async fn del(&self, keys: &[String]) -> DbResult<u64>;
     async fn exists(&self, key: &str) -> DbResult<bool>;
-    async fn ttl(&self, key: &str) -> DbResult<i64>;  // -1=无过期 -2=不存在
+    async fn ttl(&self, key: &str) -> DbResult<i64>; // -1=无过期 -2=不存在
     async fn expire(&self, key: &str, secs: u64) -> DbResult<bool>;
 
     // ── 浏览 ──────────────────────────────────────────────────
