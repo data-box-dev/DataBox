@@ -76,9 +76,9 @@ src-tauri/src/
 │   └── query.rs         # SQL 执行
 └── crates/              # 数据库驱动
     ├── db-core/         # 核心抽象层
-    ├── db-postgres/     # PostgreSQL 驱动
-    ├── db-sqlite/       # SQLite 驱动
-    ├── db-mysql/        # MySQL 驱动（待实现）
+    ├── db-postgres/     # PostgreSQL 驱动（完整实现）
+    ├── db-sqlite/       # SQLite 驱动（完整实现 + 测试）
+    ├── db-mysql/        # MySQL 驱动（完整实现）
     ├── db-mongo/        # MongoDB 驱动（待实现）
     └── db-redis/        # Redis 驱动（待实现）
 ```

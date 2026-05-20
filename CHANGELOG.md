@@ -50,12 +50,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PRAGMA index_list 索引查询
 - 事务内批量执行
 - last_insert_rowid 支持
-- 5 个单元测试：
-  - `test_sqlite_connect_memory`
-  - `test_sqlite_create_and_query`
-  - `test_sqlite_list_tables`
-  - `test_sqlite_describe_table`
-  - `test_sqlite_execute_batch`
+- 5 个单元测试覆盖核心场景
+
+**MySQL (db-mysql) — 完整实现**
+- MySqlPool 连接池管理
+- query: MySqlRow → DbValue 类型映射（支持所有 MySQL 数值类型）
+- execute: DML with LAST_INSERT_ID() 支持
+- execute_batch: 事务内批量执行
+- list_databases: information_schema.SCHEMATA 查询
+- list_tables: information_schema.TABLES 查询（BASE TABLE + VIEW）
+- describe_table: information_schema.COLUMNS + STATISTICS
+  - COLUMN_KEY 检测（PRI/UNI）
+  - CHARACTER_MAXIMUM_LENGTH 支持
+  - 多列索引分组
+- get_columns: 轻量级列元数据
+- explain: EXPLAIN 查询计划
 
 #### 技术文档
 - **README.md**：项目介绍、架构、快速开始、待办事项
