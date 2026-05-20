@@ -36,6 +36,13 @@ function runQuery(): void {
 function stopQuery(): void {
   emit('stop')
 }
+
+function onKeyDown(e: KeyboardEvent): void {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault()
+    runQuery()
+  }
+}
 </script>
 
 <template>
@@ -70,6 +77,7 @@ function stopQuery(): void {
     <textarea
       :value="modelValue"
       @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
+      @keydown="onKeyDown"
       class="sql-textarea"
       placeholder="输入 SQL 查询..."
     />

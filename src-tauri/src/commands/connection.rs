@@ -1,5 +1,5 @@
 use crate::state::{AppState, ConnectionHandle};
-use tauri::{State, command};
+use tauri::{AppHandle, State, command};
 use tauri_plugin_secure_store::SecureStore;
 use db_core::types::ConnectionConfig;
 
@@ -52,20 +52,40 @@ pub async fn test_connection(
     Ok(())
 }
 
-/// 保存连接配置（密码加密存储到系统钥匙串）
+/// 保存连接配置（密码加密存储到系统钥匙串，配置存入 JSON 文件）
 #[command]
 pub async fn save_connection(
     config: ConnectionConfig,
     secure_store: State<'_, SecureStore>,
+    app: tauri::AppHandle,
 ) -> Result<(), String> {
-    // 写入密码到系统钥匙串
+    use crate::commands::config;
+
+    // 1. 写入密码到系统钥匙串
     let key = format!("databox:password:{}", config.id);
     secure_store
         .set(&key, &config.password)
         .await
         .map_err(|e| format!("Failed to save password: {}", e))?;
 
-    // TODO: 保存不含密码的配置到本地存储（文件系统或 SQLite）
+    // 2. 加载已有连接列表，追加或更新
+    let mut connections = config::load_connections(&app)
+        .await
+        .unwrap_or_default();
+
+    let stored: config::StoredConnection = config.into();
+    // 替换已存在的同名连接，否则追加
+    if let Some(idx) = connections.iter().position(|c| c.id == stored.id) {
+        connections[idx] = stored;
+    } else {
+        connections.push(stored);
+    }
+
+    // 3. 持久化到 JSON 文件
+    config::save_connections(connections, app)
+        .await
+        .map_err(|e| format!("Failed to save config: {}", e))?;
+
     tracing::info!("Connection saved: {}", config.id);
     Ok(())
 }
