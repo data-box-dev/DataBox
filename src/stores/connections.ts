@@ -25,6 +25,24 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
+  async function updateConnection(
+    id: string,
+    updates: Partial<ConnectionConfig>,
+  ): Promise<void> {
+    const index = connections.value.findIndex((c) => c.id === id)
+    if (index === -1) {
+      throw new Error('Connection not found')
+    }
+    const updated = { ...connections.value[index], ...updates }
+    try {
+      await tauriCommands.saveConnection(updated)
+      connections.value[index] = updated
+    } catch (e) {
+      error.value = `Failed to update connection: ${e}`
+      throw e
+    }
+  }
+
   async function removeConnection(id: string): Promise<void> {
     try {
       await tauriCommands.disconnect(id)
@@ -116,6 +134,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     loading,
     error,
     addConnection,
+    updateConnection,
     removeConnection,
     connect,
     disconnect,

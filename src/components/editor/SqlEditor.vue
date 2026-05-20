@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { NButton, NTooltip } from 'naive-ui'
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
 
 const props = defineProps<{
   modelValue: string
@@ -14,52 +13,23 @@ const emit = defineEmits<{
   stop: []
 }>()
 
-const containerRef = ref<HTMLElement>()
-const editor = shallowRef<monaco.editor.IStandaloneCodeEditor>()
 const isExecuting = ref(false)
 
 onMounted(() => {
-  if (!containerRef.value) return
-
-  editor.value = monaco.editor.create(containerRef.value, {
-    value: props.modelValue,
-    language: 'sql',
-    theme: 'vs',
-    minimap: { enabled: false },
-    scrollBeyondLastLine: false,
-    lineNumbers: 'on',
-    automaticLayout: true,
-    fontSize: 14,
-    padding: { top: 8 },
-  })
-
-  editor.value.onDidChangeModelContent(() => {
-    emit('update:modelValue', editor.value!.getValue())
-  })
-
-  // Ctrl+Enter: 执行当前查询
-  editor.value.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-    const sql = editor.value!.getValue()
-    if (sql.trim()) {
-      emit('execute', sql)
-    }
-  })
+  // TODO: Monaco Editor 懒加载
 })
 
 onBeforeUnmount(() => {
-  editor.value?.dispose()
+  // cleanup
 })
 
 watch(() => props.modelValue, (newVal) => {
-  if (editor.value && newVal !== editor.value.getValue()) {
-    editor.value.setValue(newVal)
-  }
+  // sync with editor
 })
 
 function runQuery(): void {
-  const sql = editor.value?.getValue() || ''
-  if (sql.trim()) {
-    emit('execute', sql)
+  if (props.modelValue.trim()) {
+    emit('execute', props.modelValue)
   }
 }
 
@@ -97,7 +67,12 @@ function stopQuery(): void {
         <span>停止</span>
       </NTooltip>
     </div>
-    <div ref="containerRef" class="editor-container" />
+    <textarea
+      :value="modelValue"
+      @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
+      class="sql-textarea"
+      placeholder="输入 SQL 查询..."
+    />
   </div>
 </template>
 
@@ -115,9 +90,17 @@ function stopQuery(): void {
   border-bottom: 1px solid var(--n-border-color);
   background: var(--n-color);
 }
-.editor-container {
+.sql-textarea {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  padding: 12px;
+  border: none;
+  resize: none;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  background: var(--n-color);
+  color: var(--n-text-color);
+  outline: none;
 }
 </style>

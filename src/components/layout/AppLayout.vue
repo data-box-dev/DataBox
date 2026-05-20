@@ -1,136 +1,191 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ClipboardList, History, Settings } from '@vicons/tabler'
+import { ref, onMounted } from 'vue'
+import {
+  NLayout,
+  NLayoutHeader,
+  NLayoutSider,
+  NLayoutContent,
+  NLayoutFooter,
+  NSplit,
+  NFlex,
+} from 'naive-ui'
+import { useConnectionsStore } from '@/stores/connections'
+import { useQueryStore } from '@/stores/query'
+import QueryToolbar from '@/components/toolbar/QueryToolbar.vue'
+import ConnectionTree from '@/components/sidebar/ConnectionTree.vue'
+import ConnectionDialog from '@/components/sidebar/ConnectionDialog.vue'
+import SqlEditor from '@/components/editor/SqlEditor.vue'
+import QueryResult from '@/components/result/QueryResult.vue'
+import type { ConnectionConfig } from '@/types/database'
 
-const siderWidth = ref<string>('300px')
-const updateSiderWidth = (newWidth: string) => {
-  siderWidth.value = newWidth
+const connectionsStore = useConnectionsStore()
+const queryStore = useQueryStore()
+
+const siderWidth = ref('300px')
+const showDialog = ref(false)
+const editingConfig = ref<ConnectionConfig | null>(null)
+
+onMounted(() => {
+  connectionsStore.loadConnectionsList()
+})
+
+function handleRun() {
+  if (connectionsStore.activeConnectionId && queryStore.editorContent) {
+    queryStore.execute(
+      connectionsStore.activeConnectionId,
+      queryStore.editorContent,
+    )
+  }
 }
 
+function handleStop() {
+  // TODO: implement query cancellation
+}
+
+function handleNewConnection() {
+  editingConfig.value = null
+  showDialog.value = true
+}
+
+async function handleConnectionSaved(config: ConnectionConfig) {
+  try {
+    if (editingConfig.value) {
+      await connectionsStore.updateConnection(config.id, config)
+    } else {
+      await connectionsStore.addConnection(config)
+    }
+    showDialog.value = false
+  } catch (e) {
+    console.error('Failed to save connection:', e)
+  }
+}
+
+function handleConnectionDeleted(id: string) {
+  connectionsStore.removeConnection(id)
+}
 </script>
 
 <template>
-  <n-layout>
-    <!-- 头部 -->
-    <n-layout-header bordered>
-      <n-flex
-        class="h-100%"
-        data-tauri-drag-region
-        justify="end"
-        align="center"
-        size="small"
+  <NLayout class="app-layout">
+    <NLayoutHeader bordered class="toolbar-header">
+      <NFlex justify="end" align="center" size="small" class="h-100%">
+        <QueryToolbar
+          :connection-id="connectionsStore.activeConnectionId"
+          :is-executing="queryStore.isExecuting"
+          @run="handleRun"
+          @stop="handleStop"
+          @new-connection="handleNewConnection"
+        />
+      </NFlex>
+    </NLayoutHeader>
+
+    <NLayout has-sider class="main-layout">
+      <NSplit
+        direction="horizontal"
+        :default-size="siderWidth"
+        :min-size="200"
+        :max-size="500"
       >
-        <n-tooltip placement="bottom" trigger="hover">
-          <template #trigger>
-            <n-button class="square-button" size="small" quaternary>
-              <n-icon :component="ClipboardList" size="25px" />
-            </n-button>
-          </template>
-          <span>保存记录</span>
-        </n-tooltip>
-        <n-tooltip placement="bottom" trigger="hover">
-          <template #trigger>
-            <n-button class="square-button" size="small" quaternary>
-              <n-icon :component="History" size="25px" />
-            </n-button>
-          </template>
-          <span>执行记录</span>
-        </n-tooltip>
-        <n-tooltip placement="bottom" trigger="hover">
-          <template #trigger>
-            <n-button class="square-button mr-1.5" size="small" quaternary>
-              <n-icon :component="Settings" size="25px" />
-            </n-button>
-          </template>
-          <span>系统设置</span>
-        </n-tooltip>
-      </n-flex>
-    </n-layout-header>
-    <!-- 下方左右布局 -->
-    <n-layout has-sider >
-      <n-split
-        min="80px"
-        :size="siderWidth"
-        @update:size="updateSiderWidth"
-        resize-trigger-size="1">
         <template #1>
-          <!-- 左侧边栏 -->
-          <n-layout-sider
-            class="transition-none"
-            bordered
-            :width="siderWidth"
-            :native-scrollbar="false"
-          >
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-          </n-layout-sider>
+          <NLayoutSider bordered :width="siderWidth" :native-scrollbar="false">
+            <ConnectionTree
+              :nodes="connectionsStore.treeNodes"
+              :expanded-keys="Array.from(connectionsStore.expandedNodes)"
+              :selected-key="connectionsStore.activeConnectionId"
+              :loading="connectionsStore.loading"
+              @expand="(keys) => connectionsStore.expandedNodes = new Set(keys)"
+              @select="connectionsStore.setActive"
+              @new-connection="handleNewConnection"
+            />
+          </NLayoutSider>
         </template>
         <template #2>
-          <!-- 右侧内容区 -->
-          <n-layout-content bordered :native-scrollbar="false">
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-            <n-h2>海淀桥</n-h2>
-          </n-layout-content>
+          <NLayoutContent :native-scrollbar="false" class="main-content">
+            <NSplit
+              direction="vertical"
+              :default-size="0.5"
+              :min-size="0.2"
+              :max-size="0.8"
+            >
+              <template #1>
+                <div class="editor-section">
+                  <SqlEditor
+                    v-model="queryStore.editorContent"
+                    :connection-id="connectionsStore.activeConnectionId"
+                    @execute="(sql) =>
+                      queryStore.execute(
+                        connectionsStore.activeConnectionId!,
+                        sql,
+                      )
+                    "
+                  />
+                </div>
+              </template>
+              <template #2>
+                <div class="result-section">
+                  <QueryResult :result="queryStore.currentResult" />
+                </div>
+              </template>
+            </NSplit>
+          </NLayoutContent>
         </template>
-      </n-split>
-    </n-layout>
-  </n-layout>
+      </NSplit>
+    </NLayout>
+
+    <NLayoutFooter bordered class="status-bar">
+      <NFlex justify="space-between" align="center" size="small">
+        <span v-if="connectionsStore.activeConnection">
+          {{ connectionsStore.activeConnection.name }}
+          | {{ connectionsStore.activeConnection.host }}:{{
+            connectionsStore.activeConnection.port
+          }}
+          | {{ connectionsStore.activeConnection.database }}
+        </span>
+        <span v-else>未连接</span>
+        <span v-if="queryStore.currentResult">
+          {{ queryStore.currentResult.rowCount }} 行 ·
+          {{ queryStore.currentResult.elapsedMs }}ms
+        </span>
+      </NFlex>
+    </NLayoutFooter>
+  </NLayout>
+
+  <ConnectionDialog
+    :visible="showDialog"
+    :editing-config="editingConfig"
+    @update:visible="showDialog = $event"
+    @saved="handleConnectionSaved"
+  />
 </template>
 
-<style lang="scss" scoped>
-.n-layout-header {
+<style scoped>
+.app-layout {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.toolbar-header {
   height: 40px;
 }
-
-.n-layout-sider {
-  height: calc(100vh - 40px);
+.main-layout {
+  flex: 1;
+  min-height: 0;
 }
-
-.n-layout-content {
-  height: calc(100vh - 40px);
+.main-content {
+  height: 100%;
+  overflow: hidden;
 }
-
-.square-button {
-  width: 30px;
-  height: 30px;
-  padding: 0;
+.editor-section,
+.result-section {
+  height: 100%;
+  overflow: hidden;
+}
+.status-bar {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+.h-100% {
+  height: 100%;
 }
 </style>
