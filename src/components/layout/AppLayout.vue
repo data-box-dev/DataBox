@@ -3,7 +3,6 @@ import { ref, computed, onMounted, h } from 'vue'
 import type { VNode } from 'vue'
 import {
   NFlex,
-  NSplit,
   NSpin,
   NButton,
   NTag,
@@ -43,6 +42,7 @@ const showTableDetail = ref(false)
 const selectedTableNodeId = ref<string | null>(null)
 const showSaveQuery = ref(false)
 const editingConfig = ref<ConnectionConfig | null>(null)
+const editorFlex = ref(50)
 
 onMounted(() => {
   connectionsStore.loadConnectionsList()
@@ -62,6 +62,29 @@ function handleRunAll() {
 }
 
 function handleStop() {}
+
+function startResize(e: MouseEvent) {
+  const startY = e.clientY
+  const startFlex = editorFlex.value
+  const content = document.querySelector('.split-wrap') as HTMLElement
+  if (!content) return
+
+  function onMouseMove(e: MouseEvent) {
+    const dy = e.clientY - startY
+    const totalH = content.clientHeight
+    if (totalH === 0) return
+    const pct = ((startFlex * totalH / 100 + dy) / totalH) * 100
+    editorFlex.value = Math.max(10, Math.min(90, pct))
+  }
+
+  function onMouseUp() {
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  }
+
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
 
 function handleHistory() {
   showHistory.value = !showHistory.value
@@ -302,9 +325,8 @@ function buildTreeData() {
 
       <!-- Content -->
       <main class="content">
-        <NSplit direction="vertical" :default-size="0.5" :min-size="0.15" :max-size="0.85">
-          <template #1>
-            <div class="editor-pane">
+        <div class="split-wrap">
+          <div class="editor-pane" :style="{ flex: editorFlex + '%' }">
               <div class="pane-hdr">
                 <NText depth="3" class="pane-title">编辑器</NText>
               </div>
@@ -315,8 +337,7 @@ function buildTreeData() {
                 @execute-multi="(sql) => { if (connectionsStore.activeConnectionId) queryStore.executeMulti(connectionsStore.activeConnectionId, sql) }"
               />
             </div>
-          </template>
-          <template #2>
+            <div class="split-handle" @mousedown="startResize" />
             <div class="result-pane">
               <div class="pane-hdr">
                 <template v-if="queryStore.multiResults.length > 0">
@@ -363,8 +384,8 @@ function buildTreeData() {
                 </template>
               </div>
             </div>
-          </template>
-        </NSplit>
+          </div>
+        </div>
       </main>
     </div>
 
@@ -463,9 +484,9 @@ function buildTreeData() {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  width: 100vw;
   background: var(--db-bg);
   color: var(--db-text);
-  overflow: hidden;
 }
 .toolbar-header {
   height: 36px;
@@ -535,12 +556,33 @@ function buildTreeData() {
   overflow: hidden;
 }
 
+.split-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.split-handle {
+  height: 4px;
+  flex-shrink: 0;
+  background: var(--db-border);
+  cursor: ns-resize;
+  transition: background 0.15s;
+}
+.split-handle:hover {
+  background: var(--db-accent);
+}
+
 /* panes */
 .editor-pane, .result-pane {
   display: flex;
   flex-direction: column;
   min-height: 0;
   background: var(--db-bg-editor);
+  color: var(--db-text);
+  overflow: hidden;
 }
 .pane-hdr {
   display: flex;
@@ -561,6 +603,7 @@ function buildTreeData() {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  color: var(--db-text);
 }
 .multi-block {
   border-bottom: 1px solid var(--db-border);

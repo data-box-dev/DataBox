@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { darkTheme, useOsTheme, NConfigProvider } from 'naive-ui'
+import { darkTheme } from 'naive-ui'
 
 import AppLayout from '@/components/layout/AppLayout.vue'
 
-const osThemeRef = useOsTheme()
-const theme = computed(() => (osThemeRef.value === 'dark' ? darkTheme : null))
+const theme = computed(() => darkTheme)
 </script>
 
 <template>

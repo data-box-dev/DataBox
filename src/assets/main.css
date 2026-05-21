@@ -2,6 +2,14 @@
    DataBox — DataGrip-inspired dark theme
    ══════════════════════════════════════════════════════════════ */
 
+#app {
+  /* Override naive-ui dark theme component background */
+  --n-color: #1e1e1e;
+  --n-color-hover: #2a2d2e;
+  --n-color-pressed: #1a1a1a;
+  --n-border-color: #3e3e42;
+}
+
 :root {
   /* ── DataGrip Dark palette ── */
   --db-bg:         #1e1e1e;
@@ -16,17 +24,12 @@
   --db-text-dim:   #808080;
   --db-text-bright:#ffffff;
   --db-accent:     #007acc;
-  --db-success:    #4caf50;
-  --db-warning:    #ff9800;
-  --db-error:      #f44336;
 
-  /* ── naive-ui overrides (only what's needed) ── */
+  /* ── naive-ui text colors (override darkTheme defaults) ── */
+  --n-text-color:       var(--db-text);
   --n-text-color-1:     #eeeeee;
   --n-text-color-2:     var(--db-text);
   --n-text-color-3:     var(--db-text-dim);
-  --n-border-color:     var(--db-border);
-  --n-color-hover:      var(--db-hover);
-  --n-color-modal:      var(--db-bg-panel);
 }
 
 html {
@@ -40,10 +43,6 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
-}
-#app {
-  height: 100vh;
-  width: 100vw;
 }
 
 /* ── Scrollbar ── */
