@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { darkTheme } from 'naive-ui'
+import { darkTheme, NConfigProvider } from 'naive-ui'
 
 import AppLayout from '@/components/layout/AppLayout.vue'
 
