@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, h } from 'vue'
+import { ref, computed, onMounted, h, watch } from 'vue'
 import type { VNode } from 'vue'
 import {
   NFlex,
@@ -35,7 +35,6 @@ import TableDetail from '@/components/sidebar/TableDetail.vue'
 const connectionsStore = useConnectionsStore()
 const queryStore = useQueryStore()
 
-// ── UI State ──
 const showDialog = ref(false)
 const showHistory = ref(false)
 const showTableDetail = ref(false)
@@ -48,7 +47,6 @@ onMounted(() => {
   connectionsStore.loadConnectionsList()
 })
 
-// ── Toolbar actions ──
 function handleRun() {
   if (connectionsStore.activeConnectionId && queryStore.editorContent) {
     queryStore.execute(connectionsStore.activeConnectionId, queryStore.editorContent)
@@ -62,44 +60,15 @@ function handleRunAll() {
 }
 
 function handleStop() {}
-
-function startResize(e: MouseEvent) {
-  const startY = e.clientY
-  const startFlex = editorFlex.value
-  const content = document.querySelector('.split-wrap') as HTMLElement
-  if (!content) return
-
-  function onMouseMove(e: MouseEvent) {
-    const dy = e.clientY - startY
-    const totalH = content.clientHeight
-    if (totalH === 0) return
-    const pct = ((startFlex * totalH / 100 + dy) / totalH) * 100
-    editorFlex.value = Math.max(10, Math.min(90, pct))
-  }
-
-  function onMouseUp() {
-    document.removeEventListener('mousemove', onMouseMove)
-    document.removeEventListener('mouseup', onMouseUp)
-  }
-
-  document.addEventListener('mousemove', onMouseMove)
-  document.addEventListener('mouseup', onMouseUp)
-}
-
-function handleHistory() {
-  showHistory.value = !showHistory.value
-}
-
+function handleHistory() { showHistory.value = !showHistory.value }
 function handleHistorySelect(sql: string) {
   queryStore.setEditorContent(sql)
   showHistory.value = false
 }
-
 function handleNewConnection() {
   editingConfig.value = null
   showDialog.value = true
 }
-
 async function handleConnectionSaved(config: ConnectionConfig) {
   try {
     if (editingConfig.value) {
@@ -109,11 +78,10 @@ async function handleConnectionSaved(config: ConnectionConfig) {
     }
     showDialog.value = false
   } catch (e) {
-    console.error('Failed to save connection:', e)
+    console.error(e)
   }
 }
 
-// ── Tree ──
 function handleExpand(keys: string[]) {
   const prev = new Set([...connectionsStore.expandedNodes])
   const newlyExpanded = keys.filter(k => !prev.has(k) && k.includes('-tbl-'))
@@ -133,20 +101,15 @@ function handleTreeSelect(key: string) {
   }
 }
 
-// ── Connection dialog ──
+// ── Dialog ──
 const dialogFormRef = ref<FormInst>()
 const dialogTesting = ref(false)
 const dialogLoading = ref(false)
 
 const formModel = ref({
   driver: 'Postgres' as DriverKind,
-  name: '',
-  host: 'localhost',
-  port: 5432,
-  database: '',
-  username: '',
-  password: '',
-  ssl: false,
+  name: '', host: 'localhost', port: 5432,
+  database: '', username: '', password: '', ssl: false,
 })
 
 const driverOptions = [
@@ -194,11 +157,8 @@ async function testConnection() {
   try {
     await dialogFormRef.value?.validate()
     await tauriCommands.testConnection(formModel.value as ConnectionConfig)
-  } catch (e) {
-    // error shown by form validation
-  } finally {
-    dialogTesting.value = false
-  }
+  } catch {}
+  finally { dialogTesting.value = false }
 }
 
 async function saveConnection() {
@@ -208,24 +168,20 @@ async function saveConnection() {
     const config: ConnectionConfig = {
       ...formModel.value,
       id: editingConfig.value?.id || crypto.randomUUID(),
-      password: '',
-      options: {},
+      password: '', options: {},
     } as ConnectionConfig
     handleConnectionSaved(config)
     showDialog.value = false
-  } catch {
-    // validation error
-  } finally {
-    dialogLoading.value = false
-  }
+  } catch {}
+  finally { dialogLoading.value = false }
 }
 
-// ── Tree icon helper ──
+// ── Tree icon ──
 function treeIcon(kind: string): VNode {
   const icons: Record<string, string> = {
     connection: '🗄️', database: '📁', table: '📋', column: '│', schema: '📂',
   }
-  return h('span', { class: 'tree-icon' }, icons[kind] || '')
+  return h('span', { class: 'ti' }, icons[kind] || '')
 }
 
 function buildTreeData() {
@@ -241,6 +197,24 @@ function buildTreeData() {
       prefix: () => treeIcon(child.kind),
     })),
   }))
+}
+
+// ── Split resize ──
+function startResize(e: MouseEvent) {
+  const startY = e.clientY
+  const startFlex = editorFlex.value
+  const el = document.querySelector('.split-wrap') as HTMLElement
+  if (!el) return
+  function onMove(e: MouseEvent) {
+    const pct = ((startFlex * el.clientHeight / 100 + e.clientY - startY) / el.clientHeight) * 100
+    editorFlex.value = Math.max(10, Math.min(90, pct))
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
 }
 </script>
 
@@ -265,7 +239,7 @@ function buildTreeData() {
           <template #trigger>
             <NButton size="small" quaternary @click="handleStop">停止</NButton>
           </template>
-          <span>停止查询</span>
+          <span>停止</span>
         </NTooltip>
         <span class="sep" />
         <NTooltip placement="bottom">
@@ -327,62 +301,61 @@ function buildTreeData() {
       <main class="content">
         <div class="split-wrap">
           <div class="editor-pane" :style="{ flex: editorFlex + '%' }">
-              <div class="pane-hdr">
-                <NText depth="3" class="pane-title">编辑器</NText>
-              </div>
-              <SqlEditor
-                v-model="queryStore.editorContent"
-                :connection-id="connectionsStore.activeConnectionId"
-                @execute="(sql) => { if (connectionsStore.activeConnectionId) queryStore.execute(connectionsStore.activeConnectionId, sql) }"
-                @execute-multi="(sql) => { if (connectionsStore.activeConnectionId) queryStore.executeMulti(connectionsStore.activeConnectionId, sql) }"
-              />
+            <div class="pane-hdr">
+              <NText depth="3" class="pane-title">编辑器</NText>
             </div>
-            <div class="split-handle" @mousedown="startResize" />
-            <div class="result-pane">
-              <div class="pane-hdr">
-                <template v-if="queryStore.multiResults.length > 0">
-                  <NTag size="tiny" :bordered="false" round type="info">{{ queryStore.multiResults.length }} 个结果集</NTag>
-                  <NText depth="3">{{ queryStore.totalRows }} 行</NText>
+            <SqlEditor
+              v-model="queryStore.editorContent"
+              :connection-id="connectionsStore.activeConnectionId"
+              @execute="(sql) => { if (connectionsStore.activeConnectionId) queryStore.execute(connectionsStore.activeConnectionId, sql) }"
+              @execute-multi="(sql) => { if (connectionsStore.activeConnectionId) queryStore.executeMulti(connectionsStore.activeConnectionId, sql) }"
+            />
+          </div>
+          <div class="split-handle" @mousedown="startResize" />
+          <div class="result-pane">
+            <div class="pane-hdr">
+              <template v-if="queryStore.multiResults.length > 0">
+                <NTag size="tiny" :bordered="false" round type="info">{{ queryStore.multiResults.length }} 个结果集</NTag>
+                <NText depth="3">{{ queryStore.totalRows }} 行</NText>
+              </template>
+              <template v-else-if="queryStore.currentResult">
+                <NTag size="tiny" :bordered="false" round type="info">{{ queryStore.currentResult.rowCount }} 行</NTag>
+                <NText depth="3">{{ queryStore.currentResult.elapsedMs }}ms</NText>
+              </template>
+              <template v-else>
+                <NText depth="3" class="pane-title">结果</NText>
+              </template>
+              <div class="flex-1" />
+              <NTooltip v-if="queryStore.currentResult" placement="top">
+                <template #trigger>
+                  <NButton size="tiny" quaternary @click="() => {
+                    if (!queryStore.currentResult) return
+                    const cols = queryStore.currentResult.columns
+                    const rows = queryStore.currentResult.rows
+                    const header = cols.map((c: any) => c.name).join(',')
+                    const lines = rows.map((r: any) => cols.map((c: any) => { const v = r[c.name]; return (v == null) ? 'NULL' : String(v) }).join(',')).join('\n')
+                    const blob = new Blob(['﻿' + [header, ...lines].join('\n')], { type: 'text/csv;charset=utf-8;' })
+                    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'query_result.csv'; a.click(); URL.revokeObjectURL(url)
+                  }">导出 CSV</NButton>
                 </template>
-                <template v-else-if="queryStore.currentResult">
-                  <NTag size="tiny" :bordered="false" round type="info">{{ queryStore.currentResult.rowCount }} 行</NTag>
-                  <NText depth="3">{{ queryStore.currentResult.elapsedMs }}ms</NText>
-                </template>
-                <template v-else>
-                  <NText depth="3" class="pane-title">结果</NText>
-                </template>
-                <div class="flex-1" />
-                <NTooltip v-if="queryStore.currentResult" placement="top">
-                  <template #trigger>
-                    <NButton size="tiny" quaternary @click="() => {
-                      if (!queryStore.currentResult) return
-                      const cols = queryStore.currentResult.columns
-                      const rows = queryStore.currentResult.rows
-                      const header = cols.map((c: any) => c.name).join(',')
-                      const lines = rows.map((r: any) => cols.map((c: any) => { const v = r[c.name]; return (v == null) ? 'NULL' : String(v) }).join(',')).join('\n')
-                      const blob = new Blob(['﻿' + [header, ...lines].join('\n')], { type: 'text/csv;charset=utf-8;' })
-                      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'query_result.csv'; a.click(); URL.revokeObjectURL(url)
-                    }">导出 CSV</NButton>
-                  </template>
-                  <span>下载为 CSV</span>
-                </NTooltip>
-              </div>
-              <div class="result-body">
-                <template v-if="queryStore.multiResults.length > 0">
-                  <div v-for="(result, idx) in queryStore.multiResults" :key="idx" class="multi-block">
-                    <div class="multi-label">
-                      结果 {{ idx + 1 }}
-                      <span v-if="result.rowCount > 0">{{ result.rowCount }} 行 · {{ result.elapsedMs }}ms</span>
-                      <span v-else class="dim">无返回</span>
-                    </div>
-                    <QueryResult v-if="result.rowCount > 0 || result.columns.length > 0" :result="result" />
+                <span>下载 CSV</span>
+              </NTooltip>
+            </div>
+            <div class="result-body">
+              <template v-if="queryStore.multiResults.length > 0">
+                <div v-for="(result, idx) in queryStore.multiResults" :key="idx" class="multi-block">
+                  <div class="multi-label">
+                    结果 {{ idx + 1 }}
+                    <span v-if="result.rowCount > 0">{{ result.rowCount }} 行 · {{ result.elapsedMs }}ms</span>
+                    <span v-else class="dim">无返回</span>
                   </div>
-                </template>
-                <template v-else>
-                  <QueryResult v-if="queryStore.currentResult" :result="queryStore.currentResult" />
-                  <NEmpty v-else description="执行查询以查看结果" size="small" />
-                </template>
-              </div>
+                  <QueryResult v-if="result.rowCount > 0 || result.columns.length > 0" :result="result" />
+                </div>
+              </template>
+              <template v-else>
+                <QueryResult v-if="queryStore.currentResult" :result="queryStore.currentResult" />
+                <NEmpty v-else description="执行查询以查看结果" size="small" />
+              </template>
             </div>
           </div>
         </div>
@@ -485,173 +458,93 @@ function buildTreeData() {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: var(--db-bg);
-  color: var(--db-text);
+  background: #1e1e1e;
+  color: #cccccc;
 }
 .toolbar-header {
   height: 36px;
   flex-shrink: 0;
-  background: var(--db-bg-toolbar);
-  border-bottom: 1px solid var(--db-border);
+  background: #2d2d30;
+  border-bottom: 1px solid #3e3e42;
   padding: 0 6px;
 }
-.toolbar-row {
-  height: 100%;
-}
+.toolbar-row { height: 100%; }
 .btn-run { font-weight: 500; }
 .sep {
   width: 1px; height: 18px;
-  background: var(--db-border);
-  margin: 0 6px;
-  flex-shrink: 0;
+  background: #3e3e42;
+  margin: 0 6px; flex-shrink: 0;
 }
 .flex-1 { flex: 1; }
 
 .main-area {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-  overflow: hidden;
+  flex: 1; display: flex; min-height: 0; overflow: hidden;
 }
 
-/* sidebar */
 .sidebar {
-  width: 260px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--db-border);
-  background: var(--db-bg-panel);
-  overflow: hidden;
+  width: 260px; flex-shrink: 0; display: flex; flex-direction: column;
+  border-right: 1px solid #3e3e42; background: #252526; overflow: hidden;
 }
 .sidebar-hdr {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--db-border);
-  flex-shrink: 0;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 10px; border-bottom: 1px solid #3e3e42; flex-shrink: 0;
 }
 .sidebar-title {
-  font-weight: 600;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--n-text-color-3);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: #808080;
 }
-.tree-icon {
-  font-size: 13px;
-  width: 16px;
-  display: inline-block;
-  text-align: center;
-  margin-right: 4px;
-}
+.ti { font-size: 13px; width: 16px; display: inline-block; text-align: center; margin-right: 4px; }
 
-/* content */
 .content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden;
 }
 
 .split-wrap {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
 }
-
 .split-handle {
-  height: 4px;
-  flex-shrink: 0;
-  background: var(--db-border);
-  cursor: ns-resize;
-  transition: background 0.15s;
+  height: 4px; flex-shrink: 0; background: #3e3e42;
+  cursor: ns-resize; transition: background 0.15s;
 }
-.split-handle:hover {
-  background: var(--db-accent);
-}
+.split-handle:hover { background: #007acc; }
 
-/* panes */
 .editor-pane, .result-pane {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: var(--db-bg-editor);
-  color: var(--db-text);
-  overflow: hidden;
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
 }
+.editor-pane { flex: 0 0 v-bind(editorFlex + '%'); }
+.result-pane { flex: 1; }
 .pane-hdr {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 8px;
-  border-bottom: 1px solid var(--db-border);
-  background: var(--db-bg-toolbar);
-  flex-shrink: 0;
-  height: 26px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 8px; border-bottom: 1px solid #3e3e42;
+  background: #2d2d30; flex-shrink: 0; height: 26px;
 }
-.pane-title {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.result-body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  color: var(--db-text);
-}
-.multi-block {
-  border-bottom: 1px solid var(--db-border);
-}
+.pane-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.result-body { flex: 1; min-height: 0; overflow: auto; }
+.multi-block { border-bottom: 1px solid #3e3e42; }
 .multi-block:last-child { border-bottom: none; }
 .multi-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 10px;
-  font-size: 11px;
-  font-weight: 500;
-  background: var(--db-bg-toolbar);
-  border-bottom: 1px solid var(--db-border);
+  display: flex; align-items: center; gap: 8px;
+  padding: 3px 10px; font-size: 11px; font-weight: 500;
+  background: #2d2d30; border-bottom: 1px solid #3e3e42;
 }
-.dim { color: var(--n-text-color-3); font-style: italic; font-weight: normal; }
+.dim { color: #808080; font-style: italic; font-weight: normal; }
 
-/* status bar */
 .status-bar {
-  height: 24px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  background: var(--db-bg-status);
-  color: #fff;
-  font-size: 11px;
+  height: 24px; flex-shrink: 0; display: flex; align-items: center;
+  padding: 0 10px; background: #007acc; color: #fff; font-size: 11px;
 }
 .s-name { font-weight: 500; }
 .s-host { color: rgba(255,255,255,0.65); }
 .s-db { color: rgba(255,255,255,0.45); }
 .s-dim { color: rgba(255,255,255,0.5); font-style: italic; }
 
-/* history */
-.history-panel {
-  display: flex;
-  flex-direction: column;
-  max-height: 400px;
-}
+.history-panel { display: flex; flex-direction: column; max-height: 400px; }
 .hist-hdr {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--db-border);
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid #3e3e42;
 }
 .hist-list { overflow-y: auto; max-height: 320px; flex: 1; }
-.hist-footer { display: flex; justify-content: flex-end; padding: 4px 8px; border-top: 1px solid var(--db-border); }
+.hist-footer { display: flex; justify-content: flex-end; padding: 4px 8px; border-top: 1px solid #3e3e42; }
 .hist-list :deep(.n-list-item) { padding: 0; }
 .hist-list :deep(.n-list-item__content) { padding: 4px 0; }
 .hist-list :deep(.n-thing) { --n-title-font-size: 13px; }

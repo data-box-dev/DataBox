@@ -2,16 +2,31 @@
    DataBox — DataGrip-inspired dark theme
    ══════════════════════════════════════════════════════════════ */
 
-#app {
-  /* Override naive-ui dark theme component background */
-  --n-color: #1e1e1e;
-  --n-color-hover: #2a2d2e;
-  --n-color-pressed: #1a1a1a;
-  --n-border-color: #3e3e42;
+/* ── Reset & Base ── */
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #1e1e1e;
+  color: #cccccc;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── DataGrip Dark palette ── */
 :root {
-  /* ── DataGrip Dark palette ── */
   --db-bg:         #1e1e1e;
   --db-bg-panel:   #252526;
   --db-bg-toolbar: #2d2d30;
@@ -19,30 +34,8 @@
   --db-bg-status:  #007acc;
   --db-border:     #3e3e42;
   --db-hover:      #2a2d2e;
-
   --db-text:       #cccccc;
   --db-text-dim:   #808080;
-  --db-text-bright:#ffffff;
-  --db-accent:     #007acc;
-
-  /* ── naive-ui text colors (override darkTheme defaults) ── */
-  --n-text-color:       var(--db-text);
-  --n-text-color-1:     #eeeeee;
-  --n-text-color-2:     var(--db-text);
-  --n-text-color-3:     var(--db-text-dim);
-}
-
-html {
-  background-color: var(--db-bg);
-}
-body {
-  margin: 0;
-  padding: 0;
-  background-color: var(--db-bg);
-  color: var(--db-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
-  -webkit-font-smoothing: antialiased;
 }
 
 /* ── Scrollbar ── */
@@ -51,7 +44,7 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--db-bg);
+  background: #1e1e1e;
 }
 ::-webkit-scrollbar-thumb {
   background: #424242;
